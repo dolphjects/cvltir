@@ -1,0 +1,278 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Reporte de progreso</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-color: #f0f2f5; color: #333; }
+    h1 { margin-bottom: 20px; color: #2c3e50; font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; background-color: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden; }
+    th, td { border: 1px solid #e0e0e0; padding: 12px 15px; font-size: 15px; text-align: left; }
+    th { background: #e9ecef; font-weight: 600; color: #495057; }
+    tr:nth-child(even) { background-color: #f8f9fa; }
+    tr:hover { background-color: #f1f1f1; }
+    .actions { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    
+    /* --- Colores Naranja (Botones) --- */
+    .pill { 
+      padding: 10px 18px; 
+      border: 1px solid #F58220; 
+      border-radius: 25px; 
+      background: #F58220; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 15px; 
+      transition: all 0.3s ease; 
+      text-decoration: none; 
+      display: inline-flex; 
+      align-items: center; 
+    }
+    .pill:hover { 
+      background-color: #E07014; 
+      box-shadow: 0 4px 10px rgba(245, 130, 32, 0.2); /* Sombra naranja */
+      transform: translateY(-2px); 
+    }
+    /* --------------------------------- */
+
+    #filters-wrap { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    .filter-group { display: flex; flex-direction: column; gap: 5px; min-width: 200px; }
+    .filter-group label { font-size: 14px; color: #555; font-weight: 600; }
+    .filter-group input, .filter-group select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
+    #dashboard-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; margin-top: 30px; }
+    .chart-container { background-color: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .chart-container:hover { transform: translateY(-5px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .chart-container h2 { color: #34495e; margin-top: 0; margin-bottom: 20px; font-size: 1.4em; text-align: center; }
+    .chart-wrapper { position: relative; width: 100%; aspect-ratio: 16 / 10; }
+    .chart-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    .modal.is-visible { display: flex; }
+    .modal-content { background-color: #fefefe; margin: auto; padding: 30px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); max-width: 90%; max-height: 90%; position: relative; animation: fadeIn 0.3s ease-out; display: flex; flex-direction: column; align-items: center; }
+    .modal-content h2 { color: #2c3e50; margin-top: 0; margin-bottom: 25px; font-size: 1.8em; }
+    .modal-chart-wrapper { position: relative; width: 100%; max-width: 1000px; max-height: 70vh; aspect-ratio: 16 / 9; }
+    .modal-chart-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .close-button { color: #aaa; position: absolute; top: 15px; right: 25px; font-size: 35px; font-weight: bold; cursor: pointer; transition: color 0.2s ease; }
+    .close-button:hover { color: #333; }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body>
+  <h1>Reporte de progreso</h1>
+
+  <h2 id="courseName" style="color: #34495e; margin: -10px 0 0 0; font-size: 1.5em;"></h2>
+  <p id="courseCode" style="color: #7f8c8d; margin: 5px 0 20px 0; font-size: 1.1em;"></p>
+
+  <div class="actions">
+    <a class="pill" id="btnCsv" href="#">⬇️ Descargar CSV</a>
+    <button class="pill" id="btnToggle">Ver detalles</button>
+    <button class="pill" id="btnDashboard">📊 Dashboard</button>
+  </div>
+  
+  <div id="filters-wrap" style="display: none;">
+      <div class="filter-group">
+          <label for="filterName">Buscar Alumno</label>
+          <input type="text" id="filterName" placeholder="Escribe un nombre...">
+      </div>
+      <div class="filter-group">
+          <label for="filterModule">Módulo</label>
+          <select id="filterModule"><option value="all">Todos los módulos</option></select>
+      </div>
+      <div class="filter-group" id="stateFilterGroup">
+          <label for="filterState">Estado</label>
+          <select id="filterState"><option value="all">Todos los estados</option></select>
+      </div>
+  </div>
+
+  <div id="wrap"></div>
+  <div id="dashboard-wrap" style="display: none;"></div>
+
+  <div id="chartModal" class="modal">
+    <div class="modal-content">
+      <span class="close-button">&times;</span>
+      <h2 id="modalChartTitle"></h2>
+      <div class="modal-chart-wrapper"><canvas id="modalChartCanvas"></canvas></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const courseId = params.get('course_id');
+    const btnToggle = document.getElementById('btnToggle'), btnCsv = document.getElementById('btnCsv'), btnDashboard = document.getElementById('btnDashboard');
+    const tableWrap = document.getElementById('wrap'), dashboardWrap = document.getElementById('dashboard-wrap');
+    const chartModal = document.getElementById('chartModal'), modalChartTitle = document.getElementById('modalChartTitle'), modalChartCanvas = document.getElementById('modalChartCanvas'), closeButton = document.querySelector('.close-button');
+    const filtersWrap = document.getElementById('filters-wrap'), filterName = document.getElementById('filterName'), filterModule = document.getElementById('filterModule'), filterState = document.getElementById('filterState'), stateFilterGroup = document.getElementById('stateFilterGroup');
+
+    let summaryData = null, detailData = null, currentView = 'summary';
+    let chartInstances = {};
+
+    async function load(kind) {
+      if (kind === 'summary' && summaryData) return summaryData;
+      if (kind === 'detail' && detailData) return detailData;
+      const res = await fetch(`/report/data?course_id=${courseId}&kind=${kind}`);
+      const data = await res.json();
+      if (kind === 'summary') summaryData = data;
+      if (kind === 'detail') detailData = data;
+      return data;
+    }
+
+    function populateFilters(data, view) {
+        const uniqueModules = [...new Set(data.map(item => item.module_name))].sort();
+        const uniqueStates = view === 'summary' ? [...new Set(data.map(item => item.module_state || 'N/A'))].sort() : [];
+        filterModule.innerHTML = '<option value="all">Todos los módulos</option>';
+        filterState.innerHTML = '<option value="all">Todos los estados</option>';
+        uniqueModules.forEach(mod => filterModule.add(new Option(mod, mod)));
+        if (view === 'summary') uniqueStates.forEach(state => filterState.add(new Option(state, state)));
+    }
+
+    function applyFilters() {
+        const nameFilter = filterName.value.toLowerCase(), moduleFilter = filterModule.value, stateFilter = filterState.value;
+        let filteredData;
+        if (currentView === 'summary') {
+            if (!summaryData) return;
+            filteredData = summaryData.filter(row => (row.student_name.toLowerCase().includes(nameFilter)) && (moduleFilter === 'all' || row.module_name === moduleFilter) && (stateFilter === 'all' || (row.module_state || 'N/A') === stateFilter));
+            renderSumm(filteredData);
+        } else if (currentView === 'detail') {
+            if (!detailData) return;
+            filteredData = detailData.filter(row => (row.student_name.toLowerCase().includes(nameFilter)) && (moduleFilter === 'all' || row.module_name === moduleFilter));
+            renderDetail(filteredData);
+        }
+    }
+
+    function renderSumm(rows) {
+      const t = ['<table><thead><tr><th>Alumno</th><th>Módulo</th><th>Estado</th><th>%</th></tr></thead><tbody>'];
+      for (const r of rows) t.push(`<tr><td>${r.student_name}</td><td>${r.module_name}</td><td>${r.module_state || ''}</td><td>${r.module_pct ?? 0}</td></tr>`);
+      t.push('</tbody></table>');
+      tableWrap.innerHTML = t.join('');
+    }
+
+    function renderDetail(rows) {
+      const t = ['<table><thead><tr><th>Alumno</th><th>Módulo</th><th>Item</th><th>Tipo</th><th>Req</th><th>Completado</th></tr></thead><tbody>'];
+      for (const r of rows) t.push(`<tr><td>${r.student_name}</td><td>${r.module_name}</td><td>${r.item_title}</td><td>${r.item_type}</td><td>${r.requirement_type || ''}</td><td>${r.completed === true ? '✔️' : (r.completed === false ? '❌' : '')}</td></tr>`);
+      t.push('</tbody></table>');
+      tableWrap.innerHTML = t.join('');
+    }
+
+    function destroyChartInstance(instance) { if (instance) instance.destroy(); }
+    
+    function createChart(canvasId, config) {
+        destroyChartInstance(chartInstances[canvasId]);
+        const ctx = document.getElementById(canvasId);
+        if (ctx) chartInstances[canvasId] = new Chart(ctx, config);
+    }
+
+    function renderDashboard(data) {
+        dashboardWrap.innerHTML = '';
+        const chartsToCreate = [
+            { id: 'moduleProgressChart', title: 'Progreso Promedio por Módulo', creator: getModuleChartConfig },
+            { id: 'studentProgressChart', title: 'Progreso General por Alumno', creator: getStudentChartConfig },
+            { id: 'statusDistributionChart', title: 'Distribución de Estados de Módulos', creator: getStatusChartConfig }
+        ];
+        chartsToCreate.forEach(chartInfo => {
+            const container = document.createElement('div');
+            container.className = 'chart-container';
+            container.innerHTML = `<h2>${chartInfo.title}</h2><div class="chart-wrapper"><canvas id="${chartInfo.id}"></canvas></div>`;
+            dashboardWrap.appendChild(container);
+            container.addEventListener('click', () => openChartModal(chartInfo, data));
+            createChart(chartInfo.id, chartInfo.creator(data));
+        });
+    }
+
+    // --- Colores Naranja (Gráficas) ---
+    function getModuleChartConfig(data) {
+        const moduleData = data.reduce((acc, row) => { if (!acc[row.module_name]) acc[row.module_name] = { sum: 0, count: 0 }; acc[row.module_name].sum += row.module_pct; acc[row.module_name].count++; return acc; }, {});
+        const labels = Object.keys(moduleData), averages = labels.map(label => moduleData[label].sum / moduleData[label].count);
+        return { type: 'bar', data: { labels, datasets: [{ label: '% de Avance Promedio', data: averages, backgroundColor: 'rgba(245, 130, 32, 0.7)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 }, x: { title: { display: true, text: 'Módulos' } } }, plugins: { legend: { display: false } } } };
+    }
+    function getStudentChartConfig(data) {
+        const studentData = data.reduce((acc, row) => { if (!acc[row.student_name]) acc[row.student_name] = { sum: 0, count: 0 }; acc[row.student_name].sum += row.module_pct; acc[row.student_name].count++; return acc; }, {});
+        const sortedStudents = Object.entries(studentData).sort(([, a], [, b]) => (b.sum / b.count) - (a.sum / a.count));
+        const labels = sortedStudents.map(([name]) => name), averages = sortedStudents.map(([, { sum, count }]) => sum / count);
+        return { type: 'bar', data: { labels, datasets: [{ label: '% de Avance Promedio', data: averages, backgroundColor: 'rgba(245, 130, 32, 0.7)' }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } } };
+    }
+    function getStatusChartConfig(data) {
+        const statusCounts = data.reduce((acc, row) => { const state = row.module_state || 'N/A'; acc[state] = (acc[state] || 0) + 1; return acc; }, {});
+        const labels = Object.keys(statusCounts), counts = Object.values(statusCounts);
+        // Paleta de colores naranja, amarillos y grises
+        const colors = ['#F58220', '#FFB81C', '#808080', '#D9531E', '#EEEEEE'];
+        return { type: 'pie', data: { labels, datasets: [{ label: 'Número de Módulos', data: counts, backgroundColor: colors }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } };
+    }
+    // -----------------------------------
+
+    function openChartModal(chartInfo, allData) {
+        modalChartTitle.textContent = chartInfo.title;
+        chartModal.classList.add('is-visible');
+        createChart('modalChartCanvas', chartInfo.creator(allData));
+    }
+
+    function closeChartModal() {
+        chartModal.classList.remove('is-visible');
+        destroyChartInstance(chartInstances['modalChartCanvas']);
+    }
+
+    function switchView(view) {
+        currentView = view;
+        tableWrap.style.display = 'none';
+        dashboardWrap.style.display = 'none';
+        filtersWrap.style.display = 'none';
+        if (view === 'summary' || view === 'detail') {
+            tableWrap.style.display = 'block';
+            filtersWrap.style.display = 'flex';
+            btnToggle.textContent = view === 'detail' ? 'Ver resumen' : 'Ver detalles';
+            stateFilterGroup.style.display = view === 'summary' ? 'flex' : 'none';
+        } else if (view === 'dashboard') {
+            dashboardWrap.style.display = 'grid';
+        }
+    }
+    
+    btnToggle.onclick = async () => {
+      if (currentView === 'detail') {
+        switchView('summary');
+        populateFilters(summaryData, 'summary');
+        applyFilters();
+      } else {
+        switchView('detail');
+        const d = await load('detail');
+        populateFilters(d, 'detail');
+        applyFilters();
+      }
+    };
+
+    btnDashboard.onclick = async () => {
+        if (currentView !== 'dashboard') {
+            switchView('dashboard');
+            const s = summaryData || await load('summary');
+            renderDashboard(s);
+        } else {
+            switchView('summary');
+            applyFilters();
+        }
+    };
+    
+    filterName.addEventListener('input', applyFilters);
+    filterModule.addEventListener('change', applyFilters);
+    filterState.addEventListener('change', applyFilters);
+    btnCsv.onclick = (e) => { e.preventDefault(); window.location.href = `/report/data?course_id=${courseId}&kind=csv`; };
+    closeButton.onclick = closeChartModal;
+    window.onclick = (event) => { if (event.target == chartModal) closeChartModal(); };
+
+    (async () => {
+      const s = await load('summary');
+      
+      try {
+        const courseRes = await fetch(`/course-details?course_id=${courseId}`);
+        const course = await courseRes.json();
+        document.getElementById('courseName').textContent = course.nombre;
+        document.getElementById('courseCode').textContent = `Código: ${course.codigo || 'N/A'}`;
+      } catch (e) {
+        console.error('No se pudieron cargar los detalles del curso', e);
+        document.getElementById('courseName').textContent = 'Curso no encontrado';
+      }
+
+      switchView('summary');
+      populateFilters(s, 'summary');
+      renderSumm(s);
+    })();
+  </script>
+</body>
+</html>

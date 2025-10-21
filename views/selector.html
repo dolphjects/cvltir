@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Seleccionar Curso</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #f0f2f5; margin: 0; }
+    .container { background-color: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; }
+    h1 { color: #2c3e50; margin-top: 0; margin-bottom: 25px; }
+    select, button { font-size: 16px; padding: 12px 15px; border-radius: 8px; border: 1px solid #ccc; }
+    select { min-width: 300px; }
+    button { 
+      /* --- Colores Naranja --- */
+      background: #F58220; 
+      color: #fff; 
+      border-color: #F58220; 
+      /* --------------------- */
+      cursor: pointer;
+      margin-left: 10px; transition: background-color 0.2s ease; 
+    }
+    button:hover { 
+      /* --- Color Naranja (Hover) --- */
+      background-color: #E07014; 
+      /* --------------------------- */
+    }
+    #loading { font-style: italic; color: #777; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Seleccionar un Curso</h1>
+    <div id="controls">
+      <select id="courseSelector">
+        <option value="">Cargando cursos...</option>
+      </select>
+      <button id="viewReportBtn" disabled>Ver Reporte</button>
+    </div>
+    <p id="loading"></p>
+  </div>
+
+  <script>
+    const selector = document.getElementById('courseSelector');
+    const button = document.getElementById('viewReportBtn');
+    const loadingText = document.getElementById('loading');
+
+    // Al cargar la página, ir a buscar la lista de cursos
+    (async () => {
+      try {
+        const res = await fetch('/canvas-courses');
+        if (!res.ok) throw new Error('No se pudieron cargar los cursos');
+        
+        const data = await res.json();
+        
+        selector.innerHTML = ''; // Limpiar el "Cargando..."
+        
+        if (data.cursos && data.cursos.length > 0) {
+          data.cursos.forEach(curso => {
+            // Añadir cada curso como una opción
+            const option = new Option(curso.nombre, curso.id);
+            selector.add(option);
+          });
+          button.disabled = false; // Habilitar el botón
+        } else {
+          selector.innerHTML = '<option value="">No se encontraron cursos</option>';
+        }
+
+      } catch (err) {
+        console.error(err);
+        loadingText.textContent = 'Error al cargar la lista de cursos. Verifica el CANVAS_TOKEN.';
+        selector.style.display = 'none';
+        button.style.display = 'none';
+      }
+    })();
+
+    // Añadir el evento al botón
+    button.onclick = () => {
+      const selectedCourseId = selector.value;
+      if (selectedCourseId) {
+        // Redirigir a la página de reporte con el ID del curso
+        window.location.href = `/report?course_id=${selectedCourseId}`;
+      }
+    };
+  </script>
+</body>
+</html>
