@@ -45,7 +45,7 @@ async function getAll(url, params = {}) {
       for (const part of link.split(',')) {
         if (part.includes('rel="next"')) {
           next = part.substring(part.indexOf('<') + 1, part.indexOf('>'))
-                     .replace(`${PLATFORM_URL}/api/v1`, '');
+                       .replace(`${PLATFORM_URL}/api/v1`, '');
         }
       }
     }
@@ -59,7 +59,8 @@ async function getStudents(courseId) {
     'type[]': 'StudentEnrollment',
     'state[]': 'active'
   });
-  return list.map(e => ({ id: e.user.id, name: e.user.name, sis_user_id: e.sis_user_id }));
+  // Asegúrate de que getStudents devuelve sis_user_id
+  return list.map(e => ({ id: e.user.id, name: e.user.name, sis_user_id: e.user.sis_id || e.sis_user_id }));
 }
 
 async function getModulesForStudent(courseId, studentId) {
@@ -76,6 +77,12 @@ web.set('views', path.join(__dirname, 'views'));
 web.use(express.urlencoded({ extended: true }));
 web.use(express.json());
 
+// ===================================================
+// 💡 ESTA ES LA LÍNEA NUEVA
+// Le decimos a Express que sirva la carpeta 'public'
+web.use(express.static(path.join(__dirname, 'public')));
+// ===================================================
+
 // Inicializamos LTI Provider
 const lti = LtiProvider; // es un singleton, no se instancia con `new`
 lti.setup(
@@ -90,23 +97,17 @@ lti.setup(
   }
 );
 
-// ===== 💡💡 AQUÍ ESTÁ LA SOLUCIÓN 💡💡 =====
-// Whitelist (lista blanca) de rutas públicas. 
-// Le decimos a LTI que no intente autenticar estas rutas.
+// Whitelist (lista blanca) de rutas públicas.
 lti.whitelist(
   '/', 
   '/canvas-courses', 
   '/course-details'
 );
-// ===========================================
 
-
-// ===== RUTA RAÍZ (NUEVA) =====
 // Ruta raíz para mostrar el selector de cursos
 web.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'selector.html'));
 });
-// =============================
 
 
 web.get('/report', async (req, res) => {
@@ -132,9 +133,9 @@ web.get('/report', async (req, res) => {
 
       // 2) Módulos por alumno
       console.time('modsPorAlumno');
-      const limit = pLimit(8);
       let studentData;
       try {
+        const limit = pLimit(8); // Mover limit aquí
         studentData = await Promise.all(students.map(s => limit(async () => {
           let mods;
           try {
@@ -142,7 +143,6 @@ web.get('/report', async (req, res) => {
           } catch (e) {
             console.error(`getModulesForStudent ERROR (student ${s.id}):`,
               e.response?.status, e.response?.data || e.message);
-            // Si falla un alumno, retornamos vacío para ese alumno (y seguimos)
             return [];
           }
 
@@ -156,6 +156,7 @@ web.get('/report', async (req, res) => {
             rows.push({
               type: 'summary',
               student_id: s.id, student_name: s.name,
+              sis_user_id: s.sis_user_id, // <-- AÑADIDO AQUÍ
               module_id: m.id, module_name: m.name,
               module_state: m.state, module_pct: pct
             });
@@ -164,6 +165,7 @@ web.get('/report', async (req, res) => {
               rows.push({
                 type: 'detail',
                 student_id: s.id, student_name: s.name,
+                sis_user_id: s.sis_user_id, // <-- Y AÑADIDO AQUÍ
                 module_id: m.id, module_name: m.name,
                 item_id: it.id, item_title: it.title, item_type: it.type,
                 requirement_type: it.completion_requirement?.type || null,
@@ -185,9 +187,13 @@ web.get('/report', async (req, res) => {
       // 3) Aplanar y guardar en memoria
       const flat = studentData.flat();
       console.log(`Filas totales: ${flat.length}`);
+      
+      const summaryRows = flat.filter(r => r.type === 'summary');
+      const detailRows = flat.filter(r => r.type === 'detail');
+      
+      web.locals[`summ_${courseId}`]   = summaryRows; 
       web.locals[`csv_${courseId}`]    = stringify(flat, { header: true });
-      web.locals[`summ_${courseId}`]   = flat.filter(r => r.type === 'summary');
-      web.locals[`detail_${courseId}`] = flat.filter(r => r.type === 'detail');
+      web.locals[`detail_${courseId}`] = detailRows;
     }
 
     console.timeEnd('reporte');
@@ -197,8 +203,13 @@ web.get('/report', async (req, res) => {
   const msg = e?.response?.data || e?.message || String(e);
   const code = e?.response?.status || 500;
   console.error('Reporte ERROR:', code, msg);
+  
+  // -- Arreglo de Advertencias --
+  // Cerramos los timers si hay un error para que no salgan warnings
+  console.timeEnd('modsPorAlumno');
+  console.timeEnd('reporte');
+  // -----------------------------
 
-  // TEMPORAL para depurar: ver el error en el navegador
   res.status(500).send(`Error construyendo reporte (${code}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
 }
 
@@ -210,7 +221,7 @@ web.get('/report/data', async (req, res) => {
   const data =
     kind === 'csv' ? web.locals[`csv_${course_id}`] :
     kind === 'detail' ? web.locals[`detail_${course_id}`] :
-    web.locals[`summ_${course_id}`];
+    web.locals[`summ_${course_id}`]; // <-- 💡 CORRECCIÓN AQUÍ: courseId cambiado a course_id
 
   if (!data) return res.status(404).send('Sin datos');
 
@@ -223,14 +234,12 @@ web.get('/report/data', async (req, res) => {
   res.json(data);
 });
 
-// ===== RUTA DE DETALLES DEL CURSO (NUEVA) =====
 // Nueva ruta para obtener detalles de un solo curso por ID
 web.get('/course-details', async (req, res) => {
   const { course_id } = req.query;
   if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
 
   try {
-    // Usamos el cliente 'canvas' que ya tienes configurado
     const response = await canvas.get(`/courses/${course_id}`);
     const curso = response.data;
     res.json({
@@ -246,27 +255,17 @@ web.get('/course-details', async (req, res) => {
     });
   }
 });
-// ===============================================
 
 // Prueba conexión a Canvas con el token
 web.get('/canvas-test', async (req, res) => {
   try {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
-      headers: {
-        Authorization: `Bearer ${CANVAS_TOKEN}`
-      }
+      headers: { Authorization: `Bearer ${CANVAS_TOKEN}` }
     });
-
-    res.json({
-      success: true,
-      courses: response.data // Lista de cursos visibles con tu token
-    });
+    res.json({ success: true, courses: response.data });
   } catch (error) {
     console.error(error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
+    res.status(500).json({ success: false, error: error.response?.data || error.message });
   }
 });
 
@@ -276,25 +275,15 @@ web.get('/canvas-courses', async (req, res) => {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
       headers: { Authorization: `Bearer ${CANVAS_TOKEN}` }
     });
-
-    // Filtramos solo lo que necesitamos
     const cursos = response.data.map(curso => ({
       id: curso.id,
       nombre: curso.name,
       codigo: curso.course_code
     }));
-
-    res.json({
-      success: true,
-      total: cursos.length,
-      cursos
-    });
+    res.json({ success: true, total: cursos.length, cursos });
   } catch (error) {
     console.error(error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
+    res.status(500).json({ success: false, error: error.response?.data || error.message });
   }
 });
 
@@ -302,7 +291,7 @@ web.get('/debug/students', async (req, res) => {
   try {
     const { course_id } = req.query;
     if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
-    const students = await getStudents(courseId);
+    const students = await getStudents(course_id);
     res.json({ total: students.length, students: students.slice(0, 10) });
   } catch (e) {
     console.error('DEBUG students:', e.response?.status, e.response?.data || e.message);
