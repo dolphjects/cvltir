@@ -333,9 +333,10 @@ web.get('/debug/modules', async (req, res) => {
 
 const host = express();
 
+host.use('/', lti.app);
 host.use('/', web);
 
-host.use('/', lti.app);
+
 
 
 host.listen(PORT, () => console.log(`✅ LTI tool corriendo en ${TOOL_URL}`));
