@@ -80,7 +80,7 @@ web.use(express.json());
 // ===================================================
 // 💡 ESTA ES LA LÍNEA NUEVA
 // Le decimos a Express que sirva la carpeta 'public'
-web.use(express.static(path.join(__dirname, 'public')));
+//web.use(express.static(path.join(__dirname, 'public')));
 // ===================================================
 
 // Inicializamos LTI Provider
@@ -101,7 +101,11 @@ lti.setup(
 lti.whitelist(
   '/', 
   '/canvas-courses', 
-  '/course-details'
+  '/course-details',
+  '/report',         
+  '/report/data',
+  '/css',
+  '/js'
 );
 
 // Ruta raíz para mostrar el selector de cursos
@@ -332,7 +336,7 @@ web.get('/debug/modules', async (req, res) => {
   });
 
 const host = express();
-
+host.use(express.static(path.join(__dirname, 'public')));
 host.use('/', lti.app);
 host.use('/', web);
 
