@@ -114,7 +114,7 @@ lti.whitelist(
 // ===================================
 web.get('/debug/lti', async (req, res) => {
   try {
-    const db = lti.Database.getInstance();
+    const db = lti.db;
     if (!db) {
       return res.status(500).json({ error: 'La base de datos de LTI no está inicializada.' });
     }
