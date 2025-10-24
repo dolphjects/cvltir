@@ -315,10 +315,11 @@ web.get('/debug/modules', async (req, res) => {
   }
 });
 
-// ---- BOOTSTRAP ----
 (async () => {
+  // 1. Despliega LTIJS
   await lti.deploy({ serverless: true, silent: true });
 
+  // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
   await lti.registerPlatform({
     url: PLATFORM_URL,
     name: 'Canvas',
@@ -328,6 +329,7 @@ web.get('/debug/modules', async (req, res) => {
     authConfig: { method: 'JWK_SET', key: KEYSET_URL }
   });
 
+  // 3. Define qué hacer en una conexión exitosa
   lti.onConnect(async (token, req, res) => {
     const courseId = token?.platformContext?.context?.id;
     if (!courseId) return res.status(400).send('No hay contexto de curso.');
@@ -335,15 +337,17 @@ web.get('/debug/modules', async (req, res) => {
     return res.redirect(`/report?course_id=${courseId}`);
   });
 
-const host = express();
-host.use(express.static(path.join(__dirname, 'public')));
-host.use('/', lti.app);
-host.use('/', web);
+  // 4. SOLO AHORA, crea el servidor
+  const host = express();
 
+  // 5. Configura el orden de las rutas (como ya lo teníamos)
+  // (Estáticos primero, LTI después, tu app al final)
+  host.use(express.static(path.join(__dirname, 'public')));
+  host.use('/', lti.app); // Ahora lti.app SÍ conoce la plataforma registrada
+  host.use('/', web);
 
-
-
-host.listen(PORT, () => console.log(`✅ LTI tool corriendo en ${TOOL_URL}`));
+  // 6. Enciende el servidor
+  host.listen(PORT, () => console.log(`✅ LTI tool corriendo en ${TOOL_URL}`));
 
 })().catch(err => {
   console.error('❌ Error al iniciar la app:', err);
