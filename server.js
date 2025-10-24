@@ -343,7 +343,7 @@ web.get('/debug/modules', async (req, res) => {
 
 (async () => {
   // 1. Despliega LTIJS
-  await lti.deploy({silent: true });
+  await lti.deploy({ serverless: true, silent: true });
 
   // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
   await lti.registerPlatform({
