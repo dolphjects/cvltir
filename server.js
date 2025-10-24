@@ -326,7 +326,8 @@ web.get('/debug/modules', async (req, res) => {
     clientId: CLIENT_ID || 'TO_FILL',
     authenticationEndpoint: AUTH_LOGIN_URL,
     accesstokenEndpoint: AUTH_TOKEN_URL,
-    authConfig: { method: 'JWK_SET', key: KEYSET_URL }
+    authConfig: { method: 'JWK_SET', key: KEYSET_URL },
+    deploymentId: DEPLOYMENT_ID || 'TO_FILL' 
   });
 
   // 3. Define qué hacer en una conexión exitosa
