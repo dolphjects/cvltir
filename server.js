@@ -347,29 +347,26 @@ web.get('/debug/modules', async (req, res) => {
 });
 
 (async () => {
-  // 1. Despliega LTIJS (esto INICIA la conexión a la BD)
+  // 1. Despliega LTIJS
   await lti.deploy({ serverless: true, silent: true });
 
-  // --- CORRECCIÓN 3: ESPERAR A QUE LA BD ESTÉ LISTA ---
+  // --- CORRECCIÓN 2: Forzar re-registro de plataforma ---
+  // Borramos el registro antiguo para asegurar que se usen
+  // las variables de entorno MÁS ACTUALES (CLIENT_ID, DEPLOYMENT_ID).
   try {
-    // Esperamos activamente a que lti.db esté disponible
-    while (!lti.db) {
-      console.log('Esperando conexión con la base de datos...');
-      await new Promise(resolve => setTimeout(resolve, 100)); // Espera 100ms
+    if (lti.db) { // Asegurarnos que la BD conectó
+      console.log(`Buscando y eliminando plataforma antigua para: ${PLATFORM_URL}`);
+      await lti.db.collection('platform').deleteOne({ platformUrl: PLATFORM_URL });
+      console.log('Plataforma antigua eliminada. Se registrará con los nuevos .env.');
+    } else {
+      console.error('La base de datos de LTI no se inicializó, saltando limpieza.');
     }
-    console.log('Base de datos conectada, procediendo con la limpieza.');
-
-    // Ahora lti.db SÍ existe, podemos borrar con seguridad
-    console.log(`Buscando y eliminando plataforma antigua para: ${PLATFORM_URL}`);
-    await lti.db.collection('platform').deleteOne({ platformUrl: PLATFORM_URL });
-    console.log('Plataforma antigua eliminada. Se registrará con los nuevos .env.');
-
   } catch (err) {
     console.error('Error limpiando plataforma antigua:', err);
   }
-  // --- FIN CORRECCIÓN 3 ---
+  // --- FIN CORRECCIÓN 2 ---
 
-  // 2. REGISTRA LA PLATAFORMA (Ahora creará un documento fresco)
+  // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
   console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID} y DEPLOYMENT_ID: ${DEPLOYMENT_ID}`);
   await lti.registerPlatform({
     url: PLATFORM_URL,
@@ -381,6 +378,7 @@ web.get('/debug/modules', async (req, res) => {
     deploymentId: DEPLOYMENT_ID || 'TO_FILL' 
   });
   console.log('Plataforma registrada/actualizada exitosamente.');
+
 
   // 3. Define qué hacer en una conexión exitosa
   lti.onConnect(async (token, req, res) => {
@@ -395,7 +393,7 @@ web.get('/debug/modules', async (req, res) => {
 
   // 5. Configuracion del orden de las rutas
   host.use(express.static(path.join(__dirname, 'public')));
-  host.use('/', lti.app); 
+  host.use('/', lti.app); // Ahora lti.app SÍ conoce la plataforma registrada
   host.use('/', web);
 
   // 6. Enciende el servidor
