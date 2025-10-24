@@ -347,12 +347,12 @@ web.get('/debug/modules', async (req, res) => {
 });
 
 (async () => {
-  // 1. Despliega LTIJS (esto INICIA la conexión a la BD)
-  // Esta vez, tendrá la contraseña CORRECTA (r4bbit)
+  // 1. Despliega LTIJS (inicia la conexión a la BD)
   await lti.deploy({ serverless: true, silent: true });
 
-  // --- CORRECCIÓN: Usar el método deletePlatform de ltijs ---
-  // Este método SÍ espera internamente a que la BD esté lista.
+  // --- LA CORRECCIÓN DEFINITIVA ---
+  // Usamos el método oficial de ltijs para borrar.
+  // Este método SÍ espera a que la BD esté lista.
   try {
     console.log(`Intentando eliminar plataforma antigua para: ${PLATFORM_URL} con ClientID: ${CLIENT_ID}`);
     // Usamos el método oficial de ltijs para borrar el documento VIEJO
@@ -362,10 +362,11 @@ web.get('/debug/modules', async (req, res) => {
     // Si no existía, dará un error, pero no pasa nada.
     console.log('No se pudo eliminar plataforma (probablemente no existía):', err.message);
   }
-  // --- FIN CORRECCIÓN ---
+  // --- FIN DE LA CORRECCIÓN ---
 
   // 2. REGISTRA LA PLATAFORMA
-  // Como ya no existe, SÍ creará un documento NUEVO Y COMPLETO.
+  // Como el documento viejo FUE BORRADO, esta función creará
+  // un documento NUEVO y COMPLETO (ahora SÍ con el deploymentId).
   console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID} y DEPLOYMENT_ID: ${DEPLOYMENT_ID}`);
   await lti.registerPlatform({
     url: PLATFORM_URL,
