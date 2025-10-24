@@ -108,6 +108,38 @@ lti.whitelist(
   '/js'
 );
 
+// ===================================
+// ==== RUTA DE DEBUG TEMPORAL ====
+// ===================================
+web.get('/debug/lti', async (req, res) => {
+  try {
+    const db = lti.Database.getInstance();
+    if (!db) {
+      return res.status(500).json({ error: 'La base de datos de LTI no está inicializada.' });
+    }
+    
+    // Busca la colección 'platform'
+    const platforms = await db.collection('platform').find({}).toArray();
+    
+    // Muestra lo que encontró, Y TAMBIÉN lo que hay en las variables de entorno
+    res.json({
+      message: `Esto es lo que LTIJS tiene en su base de datos AHORA MISMO:`,
+      variables_de_entorno_actuales: {
+         CLIENT_ID_EN_RENDER: process.env.CLIENT_ID || 'NO DEFINIDO',
+         DEPLOYMENT_ID_EN_RENDER: process.env.DEPLOYMENT_ID || 'NO DEFINIDO',
+         PLATFORM_URL_EN_RENDER: process.env.PLATFORM_URL || 'NO DEFINIDO'
+      },
+      plataformas_registradas_en_mongo: platforms
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
+});
+// ===================================
+// ==== FIN DE RUTA DE DEBUG ====
+// ===================================
+
 // Ruta raíz para mostrar el selector de cursos
 web.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'selector.html'));
