@@ -105,7 +105,8 @@ lti.whitelist(
   '/report',         
   '/report/data',
   '/css',
-  '/js'
+  '/js',
+  '/debug/lti'
 );
 
 // ===================================
