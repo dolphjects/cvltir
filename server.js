@@ -1,4 +1,10 @@
-// server.js
+// Servidor principal de la aplicación de reportes LTI.
+// Responsabilidades:
+// 1. Autenticación LTI 1.3 contra Canvas (usando ltijs y MongoDB).
+// 2. Consumo de la API de Canvas para obtener datos (alumnos, módulos).
+// 3. Servir la aplicación web (HTML/CSS/JS) y una API de datos interna.
+
+// --- Dependencias ---
 
 const express = require('express');
 const dotenv = require('dotenv');
@@ -59,7 +65,7 @@ async function getStudents(courseId) {
     'type[]': 'StudentEnrollment',
     'state[]': 'active'
   });
-  // Asegúrate de que getStudents devuelve sis_user_id
+  
   return list.map(e => ({ id: e.user.id, name: e.user.name, sis_user_id: e.user.sis_id || e.sis_user_id }));
 }
 
@@ -77,27 +83,21 @@ web.set('views', path.join(__dirname, 'views'));
 web.use(express.urlencoded({ extended: true }));
 web.use(express.json());
 
-// ===================================================
-// 💡 ESTA ES LA LÍNEA NUEVA
-// Le decimos a Express que sirva la carpeta 'public'
-//web.use(express.static(path.join(__dirname, 'public')));
-// ===================================================
-
 // Inicializamos LTI Provider
-const lti = LtiProvider; // es un singleton, no se instancia con `new`
+const lti = LtiProvider; 
 lti.setup(
   'LTI-PROGRESS',
   { url: MONGO_URL },
   {
-    appRoute: '/lti',     // la “app” de ltijs vive bajo /lti
-    loginRoute: '/login', // login y keys en raíz, más simple
+    appRoute: '/lti',     
+    loginRoute: '/login', 
     keysetRoute: '/keys',
     cookieSecure: false,
     ltiKey: LTI_ENCRYPTION_KEY
   }
 );
 
-// Whitelist (lista blanca) de rutas públicas.
+// Whitelist
 lti.whitelist(
   '/', 
   '/canvas-courses', 
@@ -109,9 +109,7 @@ lti.whitelist(
   '/debug/lti'
 );
 
-// ===================================
-// ==== RUTA DE DEBUG TEMPORAL ====
-// ===================================
+//debug jlmh
 web.get('/debug/lti', async (req, res) => {
   try {
     const db = lti.db;
@@ -137,11 +135,9 @@ web.get('/debug/lti', async (req, res) => {
     res.status(500).json({ error: e.message, stack: e.stack });
   }
 });
-// ===================================
-// ==== FIN DE RUTA DE DEBUG ====
-// ===================================
+//debug jlmh end
 
-// Ruta raíz para mostrar el selector de cursos
+// Muestra el selector de cursos
 web.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'selector.html'));
 });
@@ -172,7 +168,7 @@ web.get('/report', async (req, res) => {
       console.time('modsPorAlumno');
       let studentData;
       try {
-        const limit = pLimit(8); // Mover limit aquí
+        const limit = pLimit(8); 
         studentData = await Promise.all(students.map(s => limit(async () => {
           let mods;
           try {
@@ -193,7 +189,7 @@ web.get('/report', async (req, res) => {
             rows.push({
               type: 'summary',
               student_id: s.id, student_name: s.name,
-              sis_user_id: s.sis_user_id, // <-- AÑADIDO AQUÍ
+              sis_user_id: s.sis_user_id, 
               module_id: m.id, module_name: m.name,
               module_state: m.state, module_pct: pct
             });
@@ -202,7 +198,7 @@ web.get('/report', async (req, res) => {
               rows.push({
                 type: 'detail',
                 student_id: s.id, student_name: s.name,
-                sis_user_id: s.sis_user_id, // <-- Y AÑADIDO AQUÍ
+                sis_user_id: s.sis_user_id, 
                 module_id: m.id, module_name: m.name,
                 item_id: it.id, item_title: it.title, item_type: it.type,
                 requirement_type: it.completion_requirement?.type || null,
@@ -221,7 +217,7 @@ web.get('/report', async (req, res) => {
         console.timeEnd('modsPorAlumno');
       }
 
-      // 3) Aplanar y guardar en memoria
+      // 3) guarda y flat los datos obtenidos 
       const flat = studentData.flat();
       console.log(`Filas totales: ${flat.length}`);
       
@@ -241,11 +237,8 @@ web.get('/report', async (req, res) => {
   const code = e?.response?.status || 500;
   console.error('Reporte ERROR:', code, msg);
   
-  // -- Arreglo de Advertencias --
-  // Cerramos los timers si hay un error para que no salgan warnings
   console.timeEnd('modsPorAlumno');
   console.timeEnd('reporte');
-  // -----------------------------
 
   res.status(500).send(`Error construyendo reporte (${code}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
 }
@@ -350,7 +343,7 @@ web.get('/debug/modules', async (req, res) => {
 
 (async () => {
   // 1. Despliega LTIJS
-  await lti.deploy({ serverless: true, silent: true });
+  await lti.deploy({silent: true });
 
   // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
   await lti.registerPlatform({
@@ -371,11 +364,10 @@ web.get('/debug/modules', async (req, res) => {
     return res.redirect(`/report?course_id=${courseId}`);
   });
 
-  // 4. SOLO AHORA, crea el servidor
+  // 4. Crea el servidor
   const host = express();
 
-  // 5. Configura el orden de las rutas (como ya lo teníamos)
-  // (Estáticos primero, LTI después, tu app al final)
+  // 5. Configuracion del orden de las rutas
   host.use(express.static(path.join(__dirname, 'public')));
   host.use('/', lti.app); // Ahora lti.app SÍ conoce la plataforma registrada
   host.use('/', web);
