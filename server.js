@@ -347,28 +347,26 @@ web.get('/debug/modules', async (req, res) => {
 });
 
 (async () => {
-  // 1. Despliega LTIJS
+  // 1. Despliega LTIJS (inicia la conexión a la BD)
   await lti.deploy({ serverless: true, silent: true });
 
-  // --- CORRECCIÓN 2: Forzar re-registro de plataforma ---
-  // Borramos el registro antiguo para asegurar que se usen
-  // las variables de entorno MÁS ACTUALES (CLIENT_ID, DEPLOYMENT_ID).
+  // --- CORRECCIÓN 4: Usar el método deletePlatform de ltijs ---
+  // Este método SÍ espera a que la BD esté lista antes de borrar.
   try {
-    if (lti.db) { // Asegurarnos que la BD conectó
-      console.log(`Buscando y eliminando plataforma antigua para: ${PLATFORM_URL}`);
-      await lti.db.collection('platform').deleteOne({ platformUrl: PLATFORM_URL });
-      console.log('Plataforma antigua eliminada. Se registrará con los nuevos .env.');
-    } else {
-      console.error('La base de datos de LTI no se inicializó, saltando limpieza.');
-    }
+    console.log(`Intentando eliminar plataforma antigua para: ${PLATFORM_URL} con ClientID: ${CLIENT_ID}`);
+    // Usamos el método oficial de ltijs para borrar
+    await lti.deletePlatform(PLATFORM_URL, CLIENT_ID); 
+    console.log('Plataforma antigua eliminada exitosamente (si existía).');
   } catch (err) {
-    console.error('Error limpiando plataforma antigua:', err);
+    // Si no existía, dará un error, pero no pasa nada.
+    console.log('No se pudo eliminar plataforma (probablemente no existía):', err.message);
   }
-  // --- FIN CORRECCIÓN 2 ---
+  // --- FIN CORRECCIÓN 4 ---
 
-  // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
+  // 2. REGISTRA LA PLATAFORMA
+  // Como ya no existe, SÍ creará un documento NUEVO Y COMPLETO.
   console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID} y DEPLOYMENT_ID: ${DEPLOYMENT_ID}`);
-  await lti.registerPlatform({
+  const platform = await lti.registerPlatform({ // <-- Guardamos la respuesta
     url: PLATFORM_URL,
     name: 'Canvas',
     clientId: CLIENT_ID || 'TO_FILL',
@@ -378,6 +376,24 @@ web.get('/debug/modules', async (req, res) => {
     deploymentId: DEPLOYMENT_ID || 'TO_FILL' 
   });
   console.log('Plataforma registrada/actualizada exitosamente.');
+
+  // --- AÑADIDO: Tu idea del Timestamp ---
+  try {
+    // Esperamos a que lti.db esté listo (solo por seguridad)
+    while (!lti.db) {
+      console.log('(Timestamp) Esperando BD...');
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    const platformId = platform.platformId(); // Obtenemos el _id del documento
+    await lti.db.collection('platform').updateOne(
+      { _id: platformId }, // Buscamos por el _id que acabamos de registrar
+      { $set: { ultimaActualizacion: new Date() } } // ¡Ponemos la hora actual!
+    );
+    console.log('✅ Timestamp de actualización añadido al documento.');
+  } catch (e) {
+    console.error('Error al añadir timestamp:', e.message);
+  }
+  // --- FIN AÑADIDO ---
 
 
   // 3. Define qué hacer en una conexión exitosa
