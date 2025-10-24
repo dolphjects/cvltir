@@ -28,7 +28,8 @@ const {
   CANVAS_TOKEN,
   CLIENT_ID,
   DEPLOYMENT_ID,
-  MONGO_URL
+  MONGO_URL,
+  NODE_ENV // <-- CORRECCIÓN: Necesitamos esta variable
 } = process.env;
 
 // ==== Canvas API client + helpers ====
@@ -51,7 +52,7 @@ async function getAll(url, params = {}) {
       for (const part of link.split(',')) {
         if (part.includes('rel="next"')) {
           next = part.substring(part.indexOf('<') + 1, part.indexOf('>'))
-                       .replace(`${PLATFORM_URL}/api/v1`, '');
+            .replace(`${PLATFORM_URL}/api/v1`, '');
         }
       }
     }
@@ -83,6 +84,10 @@ web.set('views', path.join(__dirname, 'views'));
 web.use(express.urlencoded({ extended: true }));
 web.use(express.json());
 
+// --- CORRECCIÓN 1: Detectar producción para las cookies ---
+const isProduction = NODE_ENV === 'production';
+// --- FIN CORRECCIÓN 1 ---
+
 // Inicializamos LTI Provider
 const lti = LtiProvider; 
 lti.setup(
@@ -92,7 +97,7 @@ lti.setup(
     appRoute: '/lti',     
     loginRoute: '/login', 
     keysetRoute: '/keys',
-    cookieSecure: false,
+    cookieSecure: isProduction, // <-- CORRECCIÓN 1 (Debe ser true en HTTPS)
     ltiKey: LTI_ENCRYPTION_KEY
   }
 );
@@ -102,7 +107,7 @@ lti.whitelist(
   '/', 
   '/canvas-courses', 
   '/course-details',
-  '/report',         
+  '/report',       
   '/report/data',
   '/css',
   '/js',
@@ -124,9 +129,9 @@ web.get('/debug/lti', async (req, res) => {
     res.json({
       message: `Esto es lo que LTIJS tiene en su base de datos AHORA MISMO:`,
       variables_de_entorno_actuales: {
-         CLIENT_ID_EN_RENDER: process.env.CLIENT_ID || 'NO DEFINIDO',
-         DEPLOYMENT_ID_EN_RENDER: process.env.DEPLOYMENT_ID || 'NO DEFINIDO',
-         PLATFORM_URL_EN_RENDER: process.env.PLATFORM_URL || 'NO DEFINIDO'
+        CLIENT_ID_EN_RENDER: process.env.CLIENT_ID || 'NO DEFINIDO',
+        DEPLOYMENT_ID_EN_RENDER: process.env.DEPLOYMENT_ID || 'NO DEFINIDO',
+        PLATFORM_URL_EN_RENDER: process.env.PLATFORM_URL || 'NO DEFINIDO'
       },
       plataformas_registradas_en_mongo: platforms
     });
@@ -232,16 +237,16 @@ web.get('/report', async (req, res) => {
     console.timeEnd('reporte');
     // Envía la página del reporte
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
-} catch (e) {
-  const msg = e?.response?.data || e?.message || String(e);
-  const code = e?.response?.status || 500;
-  console.error('Reporte ERROR:', code, msg);
-  
-  console.timeEnd('modsPorAlumno');
-  console.timeEnd('reporte');
+  } catch (e) {
+    const msg = e?.response?.data || e?.message || String(e);
+    const code = e?.response?.status || 500;
+    console.error('Reporte ERROR:', code, msg);
+    
+    console.timeEnd('modsPorAlumno');
+    console.timeEnd('reporte');
 
-  res.status(500).send(`Error construyendo reporte (${code}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
-}
+    res.status(500).send(`Error construyendo reporte (${code}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+  }
 
 });
 
@@ -251,7 +256,7 @@ web.get('/report/data', async (req, res) => {
   const data =
     kind === 'csv' ? web.locals[`csv_${course_id}`] :
     kind === 'detail' ? web.locals[`detail_${course_id}`] :
-    web.locals[`summ_${course_id}`]; // <-- 💡 CORRECCIÓN AQUÍ: courseId cambiado a course_id
+    web.locals[`summ_${course_id}`]; 
 
   if (!data) return res.status(404).send('Sin datos');
 
@@ -345,7 +350,24 @@ web.get('/debug/modules', async (req, res) => {
   // 1. Despliega LTIJS
   await lti.deploy({ serverless: true, silent: true });
 
+  // --- CORRECCIÓN 2: Forzar re-registro de plataforma ---
+  // Borramos el registro antiguo para asegurar que se usen
+  // las variables de entorno MÁS ACTUALES (CLIENT_ID, DEPLOYMENT_ID).
+  try {
+    if (lti.db) { // Asegurarnos que la BD conectó
+      console.log(`Buscando y eliminando plataforma antigua para: ${PLATFORM_URL}`);
+      await lti.db.collection('platform').deleteOne({ platformUrl: PLATFORM_URL });
+      console.log('Plataforma antigua eliminada. Se registrará con los nuevos .env.');
+    } else {
+      console.error('La base de datos de LTI no se inicializó, saltando limpieza.');
+    }
+  } catch (err) {
+    console.error('Error limpiando plataforma antigua:', err);
+  }
+  // --- FIN CORRECCIÓN 2 ---
+
   // 2. REGISTRA LA PLATAFORMA (carga la "lista de invitados")
+  console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID} y DEPLOYMENT_ID: ${DEPLOYMENT_ID}`);
   await lti.registerPlatform({
     url: PLATFORM_URL,
     name: 'Canvas',
@@ -355,6 +377,8 @@ web.get('/debug/modules', async (req, res) => {
     authConfig: { method: 'JWK_SET', key: KEYSET_URL },
     deploymentId: DEPLOYMENT_ID || 'TO_FILL' 
   });
+  console.log('Plataforma registrada/actualizada exitosamente.');
+
 
   // 3. Define qué hacer en una conexión exitosa
   lti.onConnect(async (token, req, res) => {
