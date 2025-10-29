@@ -1,9 +1,3 @@
-// Servidor principal de la aplicación de reportes LTI.
-// Responsabilidades:
-// 1. Autenticación LTI 1.3 contra Canvas (usando ltijs y MongoDB).
-// 2. Consumo de la API de Canvas para obtener datos (alumnos, módulos).
-// 3. Servir la aplicación web (HTML/CSS/JS) y una API de datos interna.
-
 // --- Dependencias ---
 
 const express = require('express');
@@ -29,7 +23,7 @@ const {
   CLIENT_ID,
   DEPLOYMENT_ID,
   MONGO_URL,
-  NODE_ENV // <-- CORRECCIÓN: Necesitamos esta variable
+  NODE_ENV 
 } = process.env;
 
 // ==== Canvas API client + helpers ====
@@ -84,21 +78,17 @@ web.set('views', path.join(__dirname, 'views'));
 web.use(express.urlencoded({ extended: true }));
 web.use(express.json());
 
-// --- CORRECCIÓN 1: Detectar producción para las cookies ---
-const isProduction = NODE_ENV === 'production';
-// --- FIN CORRECCIÓN 1 ---
 
-// Inicializamos LTI Provider
-const lti = LtiProvider; 
-lti.setup(
-  'LTI-PROGRESS',
-  { url: MONGO_URL },
-  {
-    appRoute: '/lti',     
-    loginRoute: '/login', 
+const isProduction = NODE_ENV === 'production';
+
+const lti = new LtiProvider(
+  LTI_ENCRYPTION_KEY,   
+  { url: MONGO_URL },  
+  { 
+    appRoute: '/lti',
+    loginRoute: '/login',
     keysetRoute: '/keys',
-    cookieSecure: isProduction, // <-- CORRECCIÓN 1 (Debe ser true en HTTPS)
-    ltiKey: LTI_ENCRYPTION_KEY
+    cookieSecure: isProduction
   }
 );
 
@@ -110,37 +100,9 @@ lti.whitelist(
   '/report',       
   '/report/data',
   '/css',
-  '/js',
-  '/debug/lti'
+  '/js'
 );
 
-//debug jlmh
-web.get('/debug/lti', async (req, res) => {
-  try {
-    const db = lti.db;
-    if (!db) {
-      return res.status(500).json({ error: 'La base de datos de LTI no está inicializada.' });
-    }
-    
-    // Busca la colección 'platform'
-    const platforms = await db.collection('platform').find({}).toArray();
-    
-    // Muestra lo que encontró, Y TAMBIÉN lo que hay en las variables de entorno
-    res.json({
-      message: `Esto es lo que LTIJS tiene en su base de datos AHORA MISMO:`,
-      variables_de_entorno_actuales: {
-        CLIENT_ID_EN_RENDER: process.env.CLIENT_ID || 'NO DEFINIDO',
-        DEPLOYMENT_ID_EN_RENDER: process.env.DEPLOYMENT_ID || 'NO DEFINIDO',
-        PLATFORM_URL_EN_RENDER: process.env.PLATFORM_URL || 'NO DEFINIDO'
-      },
-      plataformas_registradas_en_mongo: platforms
-    });
-
-  } catch (e) {
-    res.status(500).json({ error: e.message, stack: e.stack });
-  }
-});
-//debug jlmh end
 
 // Muestra el selector de cursos
 web.get('/', (req, res) => {
@@ -347,39 +309,27 @@ web.get('/debug/modules', async (req, res) => {
 });
 
 (async () => {
-  // 1. Despliega LTIJS (inicia la conexión a la BD)
   await lti.deploy({ serverless: true, silent: true });
 
-  // --- LA CORRECCIÓN DEFINITIVA ---
-  // Usamos el método oficial de ltijs para borrar.
-  // Este método SÍ espera a que la BD esté lista.
+
   try {
     console.log(`Intentando eliminar plataforma antigua para: ${PLATFORM_URL} con ClientID: ${CLIENT_ID}`);
-    // Usamos el método oficial de ltijs para borrar el documento VIEJO
     await lti.deletePlatform(PLATFORM_URL, CLIENT_ID); 
     console.log('Plataforma antigua eliminada exitosamente (si existía).');
   } catch (err) {
-    // Si no existía, dará un error, pero no pasa nada.
     console.log('No se pudo eliminar plataforma (probablemente no existía):', err.message);
   }
-  // --- FIN DE LA CORRECCIÓN ---
-
-  // 2. REGISTRA LA PLATAFORMA
-  // Como el documento viejo FUE BORRADO, esta función creará
-  // un documento NUEVO y COMPLETO (ahora SÍ con el deploymentId).
-  console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID} y DEPLOYMENT_ID: ${DEPLOYMENT_ID}`);
+  console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID}`); // Ya no logueamos el DEPLOYMENT_ID
   await lti.registerPlatform({
     url: PLATFORM_URL,
     name: 'Canvas',
     clientId: CLIENT_ID || 'TO_FILL',
     authenticationEndpoint: AUTH_LOGIN_URL,
     accesstokenEndpoint: AUTH_TOKEN_URL,
-    authConfig: { method: 'JWK_SET', key: KEYSET_URL },
-    deploymentId: DEPLOYMENT_ID || 'TO_FILL' 
+    authConfig: { method: 'JWK_SET', key: KEYSET_URL }
   });
   console.log('Plataforma registrada/actualizada exitosamente.');
 
-  // 3. Define qué hacer en una conexión exitosa
   lti.onConnect(async (token, req, res) => {
     const courseId = token?.platformContext?.context?.id;
     if (!courseId) return res.status(400).send('No hay contexto de curso.');
@@ -387,15 +337,12 @@ web.get('/debug/modules', async (req, res) => {
     return res.redirect(`/report?course_id=${courseId}`);
   });
 
-  // 4. Crea el servidor
   const host = express();
 
-  // 5. Configuracion del orden de las rutas
   host.use(express.static(path.join(__dirname, 'public')));
   host.use('/', lti.app); // Ahora lti.app SÍ conoce la plataforma registrada
   host.use('/', web);
 
-  // 6. Enciende el servidor
   host.listen(PORT, () => console.log(`✅ LTI tool corriendo en ${TOOL_URL}`));
 
 })().catch(err => {
