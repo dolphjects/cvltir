@@ -80,19 +80,23 @@ web.use(express.json());
 
 
 const isProduction = NODE_ENV === 'production';
+// 1. Definimos LTI (Como lo tenías)
+const lti = LtiProvider; 
 
-const lti = new LtiProvider(
-  LTI_ENCRYPTION_KEY,   
-  { url: MONGO_URL },  
-  { 
+// 2. Configuramos LTI
+lti.setup(
+  LTI_ENCRYPTION_KEY,   // <-- CORRECCIÓN: La clave de encriptación real
+  { url: MONGO_URL },    // La base de datos
+  { // Opciones
     appRoute: '/lti',
     loginRoute: '/login',
     keysetRoute: '/keys',
-    cookieSecure: isProduction
+    devMode: !isProduction // <-- La forma moderna de 'cookieSecure'
   }
 );
 
-// Whitelist
+// 3. ¡LA WHITELIST VA AFUERA, COMO LA TENÍAS ANTES!
+// Esto le dice a LTI que NO proteja estas rutas.
 lti.whitelist(
   '/', 
   '/canvas-courses', 
@@ -102,7 +106,6 @@ lti.whitelist(
   '/css',
   '/js'
 );
-
 
 // Muestra el selector de cursos
 web.get('/', (req, res) => {
