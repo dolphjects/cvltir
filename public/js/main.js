@@ -169,7 +169,7 @@ function renderSumm(rows) {
     // --- Título y Botón PDF ---
     t.push('<div class="table-title-container">');
     t.push('<h2>Reporte de Avance</h2>');
-    t.push(`<button class="pill print-button" id="printAvanceBtn">📄 Imprimir PDF</button>`);
+    //t.push(`<button class="pill print-button" id="printAvanceBtn">📄 Imprimir PDF</button>`);
     t.push('</div>');
     // --- Tabla Avance ---
     t.push(`<table class="matrix-table" id="${tableId}">`);
