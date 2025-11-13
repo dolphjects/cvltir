@@ -2,8 +2,8 @@
     // --- Tus variables y funciones existentes ---
     const params = new URLSearchParams(location.search);
     const courseId = params.get('course_id');
-    const btnToggle = document.getElementById('btnToggle'), btnCsv = document.getElementById('btnCsv'), btnDashboard = document.getElementById('btnDashboard');
-    const btnToggleSummary = document.getElementById('btnToggleSummary');
+    const btnCsv = document.getElementById('btnCsv');    
+    //const btnToggleSummary = document.getElementById('btnToggleSummary');
     const tableWrap = document.getElementById('wrap'), dashboardWrap = document.getElementById('dashboard-wrap');
     const chartModal = document.getElementById('chartModal'), modalChartTitle = document.getElementById('modalChartTitle'), modalChartCanvas = document.getElementById('modalChartCanvas'), closeButton = document.querySelector('.close-button');
     const filtersWrap = document.getElementById('filters-wrap'), filterName = document.getElementById('filterName'), filterModule = document.getElementById('filterModule'), filterState = document.getElementById('filterState'), stateFilterGroup = document.getElementById('stateFilterGroup');
@@ -12,6 +12,7 @@
     let currentView = 'summary';
     let summaryView = 'avance'; 
     let chartInstances = {};
+    let currentSort = { column: 'sis_user_id', order: 'asc' };
 
     // --- Tus funciones auxiliares (copiadas de tu código) ---
     const translateState = (state) => {
@@ -126,88 +127,133 @@
     }
     // --- Fin de tus funciones auxiliares ---
 
+// --- 💡 renderSumm MODIFICADO CON ORDENAMIENTO ---
+function renderSumm(rows) {
+  // 1. Procesar datos (igual que tu versión)
+  const studentsMap = new Map();
+  const modulesMap = new Map();
+  const matrix = {};
+  let moduleCounter = 0; // <-- Esto ya lo habías cambiado
+  for (const row of rows) {
+    if (!studentsMap.has(row.student_id)) studentsMap.set(row.student_id, { id: row.student_id, name: row.student_name, sis_user_id: row.sis_user_id || row.student_id });
+    if (!modulesMap.has(row.module_id)) modulesMap.set(row.module_id, { id: row.module_id, name: row.module_name, short_name: `Módulo ${moduleCounter++}` });
+    const key = `${row.student_id}_${row.module_id}`;
+    matrix[key] = { pct: row.module_pct, state: row.module_state || 'N/A' };
+  }
 
-    // --- 💡 renderSumm MODIFICADO CON BOTÓN PDF ---
-    function renderSumm(rows) {
-      // 1. Procesar datos (igual que tu versión)
-      const studentsMap = new Map();
-      const modulesMap = new Map();
-      const matrix = {};
-      let moduleCounter = 1;
-      for (const row of rows) {
-        if (!studentsMap.has(row.student_id)) studentsMap.set(row.student_id, { id: row.student_id, name: row.student_name, sis_user_id: row.sis_user_id || row.student_id });
-        if (!modulesMap.has(row.module_id)) modulesMap.set(row.module_id, { id: row.module_id, name: row.module_name, short_name: `Módulo ${moduleCounter++}` });
-        const key = `${row.student_id}_${row.module_id}`;
-        matrix[key] = { pct: row.module_pct, state: row.module_state || 'N/A' };
-      }
-      const students = Array.from(studentsMap.values());
-      const modules = Array.from(modulesMap.values());
-      const t = [];
+  const students = Array.from(studentsMap.values());
+  const modules = Array.from(modulesMap.values());
+
+  // --- 💡 NUEVO: Ordenar el array de estudiantes según el estado currentSort ---
+  students.sort((a, b) => {
+      const valA = a.sis_user_id || ''; // 'sis_user_id' es la clave para 'ID IEST'
+      const valB = b.sis_user_id || '';
       
-      let tableId = '';
-      let pdfFileName = '';
-
-      if (summaryView === 'avance') {
-        tableId = 'avanceTable';
-        pdfFileName = `Reporte_Avance_${courseId}.pdf`;
-        // --- Título y Botón PDF ---
-        t.push('<div class="table-title-container">');
-        t.push('<h2>Reporte de Avance</h2>');
-        t.push(`<button class="pill print-button" id="printAvanceBtn">📄 Imprimir PDF</button>`);
-        t.push('</div>');
-        // --- Tabla Avance ---
-        t.push(`<table class="matrix-table" id="${tableId}">`); // ID añadido
-        t.push('<thead><tr><th>ID IEST</th><th>Nombre</th>');
-        for (const m of modules) t.push(`<th title="${m.name}">${m.short_name}</th>`); 
-        t.push('</tr></thead><tbody>');
-        for (const s of students) {
-          t.push('<tr>');
-          t.push(`<td>${s.sis_user_id}</td><td>${s.name}</td>`);
-          for (const m of modules) {
-            const key = `${s.id}_${m.id}`;
-            const cellData = matrix[key];
-            t.push(cellData ? `<td title="${translateState(cellData.state)}">${cellData.pct}%</td>` : '<td>-</td>');
-          }
-          t.push('</tr>');
-        }
-        t.push('</tbody></table>');
-
-      } else { // Si summaryView es 'estados'
-        tableId = 'estadosTable';
-        pdfFileName = `Reporte_Estados_${courseId}.pdf`;
-        // --- Título y Botón PDF ---
-        t.push('<div class="table-title-container">');
-        t.push('<h2>Reporte de Estados</h2>'); // Título correcto
-        t.push(`<button class="pill print-button" id="printEstadosBtn">📄 Imprimir PDF</button>`);
-        t.push('</div>');
-        // --- Tabla Estados ---
-        t.push(`<table class="matrix-table" id="${tableId}">`); // ID añadido
-        t.push('<thead><tr><th>ID IEST</th><th>Nombre</th>');
-        for (const m of modules) t.push(`<th title="${m.name}">${m.short_name}</th>`);
-        t.push('</tr></thead><tbody>');
-        for (const s of students) {
-          t.push('<tr>');
-          t.push(`<td>${s.sis_user_id}</td><td>${s.name}</td>`);
-          for (const m of modules) {
-            const key = `${s.id}_${m.id}`;
-            const cellData = matrix[key];
-            t.push(cellData ? `<td>${translateState(cellData.state)}</td>` : '<td>-</td>');
-          }
-          t.push('</tr>');
-        }
-        t.push('</tbody></table>');
+      // Usamos localeCompare con numeric: true para ordenar IDs numéricos correctamente
+      if (currentSort.order === 'asc') {
+          return valA.localeCompare(valB, undefined, { numeric: true });
+      } else {
+          return valB.localeCompare(valA, undefined, { numeric: true });
       }
+  });
+  // --- 💡 FIN DEL ORDENAMIENTO ---
 
-      tableWrap.innerHTML = t.join('');
+  const t = [];
+  
+  let tableId = '';
+  let pdfFileName = '';
 
-      // --- Attach Event Listener para el botón PDF ---
-      const printButtonId = (summaryView === 'avance') ? 'printAvanceBtn' : 'printEstadosBtn';
-      const printButton = document.getElementById(printButtonId);
-      if (printButton) {
-        printButton.addEventListener('click', () => printTableToPdf(tableId, pdfFileName));
+  if (summaryView === 'avance') {
+    tableId = 'avanceTable';
+    pdfFileName = `Reporte_Avance_${courseId}.pdf`;
+    // --- Título y Botón PDF ---
+    t.push('<div class="table-title-container">');
+    t.push('<h2>Reporte de Avance</h2>');
+    t.push(`<button class="pill print-button" id="printAvanceBtn">📄 Imprimir PDF</button>`);
+    t.push('</div>');
+    // --- Tabla Avance ---
+    t.push(`<table class="matrix-table" id="${tableId}">`);
+    
+    // --- 💡 MODIFICADO: Header de ID IEST clickeable y con flecha ---
+    let sortArrow = currentSort.order === 'asc' ? '🔼' : '🔽';
+    t.push('<thead><tr>');
+    t.push(`<th id="sortByID" class="sortable-header" title="Ordenar por ID">ID IEST ${sortArrow}</th>`);
+    t.push('<th>Nombre</th>');
+    // --- 💡 FIN DE MODIFICACIÓN ---
+
+    for (const m of modules) t.push(`<th title="${m.name}">${m.short_name}</th>`); 
+    t.push('</tr></thead><tbody>');
+    for (const s of students) {
+      t.push('<tr>');
+      t.push(`<td>${s.sis_user_id}</td><td>${s.name}</td>`);
+      for (const m of modules) {
+        const key = `${s.id}_${m.id}`;
+        const cellData = matrix[key];
+        t.push(cellData ? `<td title="${translateState(cellData.state)}">${cellData.pct}%</td>` : '<td>-</td>');
       }
+      t.push('</tr>');
     }
-    // --- FIN DE renderSumm MODIFICADO ---
+    t.push('</tbody></table>');
+
+  } else { // Si summaryView es 'estados'
+    tableId = 'estadosTable';
+    pdfFileName = `Reporte_Estados_${courseId}.pdf`;
+    // --- Título y Botón PDF ---
+    t.push('<div class="table-title-container">');
+    t.push('<h2>Reporte de Estados</h2>'); // Título correcto
+    t.push(`<button class="pill print-button" id="printEstadosBtn">📄 Imprimir PDF</button>`);
+    t.push('</div>');
+    // --- Tabla Estados ---
+    t.push(`<table class="matrix-table" id="${tableId}">`);
+    
+    // --- 💡 MODIFICADO: Header de ID IEST clickeable y con flecha ---
+    let sortArrow = currentSort.order === 'asc' ? '🔼' : '🔽';
+    t.push('<thead><tr>');
+    t.push(`<th id="sortByID" class="sortable-header" title="Ordenar por ID">ID IEST ${sortArrow}</th>`);
+    t.push('<th>Nombre</th>');
+    // --- 💡 FIN DE MODIFICACIÓN ---
+
+    for (const m of modules) t.push(`<th title="${m.name}">${m.short_name}</th>`);
+    t.push('</tr></thead><tbody>');
+    for (const s of students) {
+      t.push('<tr>');
+      t.push(`<td>${s.sis_user_id}</td><td>${s.name}</td>`);
+      for (const m of modules) {
+        const key = `${s.id}_${m.id}`;
+        const cellData = matrix[key];
+        t.push(cellData ? `<td>${translateState(cellData.state)}</td>` : '<td>-</td>');
+      }
+      t.push('</tr>');
+    }
+    t.push('</tbody></table>');
+  }
+
+  tableWrap.innerHTML = t.join('');
+
+  // --- 💡 NUEVO: Event Listener para el header clickeable ---
+  // Lo añadimos después de crear el HTML
+  const sortableHeader = document.getElementById('sortByID');
+  if (sortableHeader) {
+      sortableHeader.addEventListener('click', () => {
+          // Cambiar el orden
+          currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+          // Volver a pintar la tabla
+          // Usamos applyFilters() porque respeta los filtros ya puestos
+          applyFilters(); 
+      });
+  }
+  // --- 💡 FIN DEL LISTENER ---
+
+
+  // --- Attach Event Listener para el botón PDF (esto ya lo tenías) ---
+  const printButtonId = (summaryView === 'avance') ? 'printAvanceBtn' : 'printEstadosBtn';
+  const printButton = document.getElementById(printButtonId);
+  if (printButton) {
+    printButton.addEventListener('click', () => printTableToPdf(tableId, pdfFileName));
+  }
+}
+// --- FIN DE renderSumm MODIFICADO ---
+
     // --- Tus Handlers de Botones y Arranque (SIN CAMBIOS) ---
     function switchView(view) {
       currentView = view;
@@ -237,7 +283,7 @@
           btnToggleSummary.textContent = '📝 Ver Avance'; 
       }
     }
-    btnToggle.onclick = async () => {
+    /*btnToggle.onclick = async () => {
       if (currentView === 'detail') {
         summaryView = 'avance';
         switchView('summary');
@@ -271,7 +317,7 @@
             switchView('summary');
             applyFilters();
         }
-    };
+    };*/
     filterName.addEventListener('input', applyFilters);
     filterModule.addEventListener('change', applyFilters);
     filterState.addEventListener('change', applyFilters);
@@ -290,7 +336,10 @@
         document.getElementById('courseName').textContent = 'Curso no encontrado';
       }
       summaryView = 'avance';
-      switchView('summary');
+      //switchView('summary');
+      tableWrap.style.display = 'block';
+      filtersWrap.style.display = 'flex';
+      stateFilterGroup.style.display = 'flex';
       populateFilters(s, 'summary');
       renderSumm(s); // Render inicial
     })();
