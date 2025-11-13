@@ -275,7 +275,7 @@
     filterName.addEventListener('input', applyFilters);
     filterModule.addEventListener('change', applyFilters);
     filterState.addEventListener('change', applyFilters);
-    btnCsv.onclick = (e) => { e.preventDefault(); window.location.href = `/report?course_id=${courseId}&kind=csv`; };
+    btnCsv.onclick = (e) => { e.preventDefault(); window.location.href = `/report/data?course_id=${courseId}&kind=csv`; };
     closeButton.onclick = closeChartModal;
     window.onclick = (event) => { if (event.target == chartModal) closeChartModal(); };
     (async () => {

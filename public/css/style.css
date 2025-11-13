@@ -1,5 +1,5 @@
 body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-color: #f0f2f5; color: #333; }
-    h1 { margin-bottom: 20px; color: #F58220; font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+    h1 { margin-bottom: 20px; color: #FF5900; font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
     
     /* 💡 Estilo para el contenedor del título y botón PDF */
     .table-title-container {
@@ -43,10 +43,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-colo
       border: 1px solid #E0E0E0; padding: 10px; font-size: 14px; text-align: center; min-width: 80px;
     }
     .matrix-table th {
-      background-color: #F58220; color: white; font-weight: 600; padding: 12px 10px; position: sticky; top: 0; z-index: 10;
+      background-color: #FF5900; color: white; font-weight: 600; padding: 12px 10px; position: sticky; top: 0; z-index: 10;
     }
     .matrix-table th:first-child, .matrix-table td:first-child {
-      position: sticky; left: 0; z-index: 11; background-color: #F58220; min-width: 100px; color: white; /* Header ID blanco */
+      position: sticky; left: 0; z-index: 11; background-color: #FF5900; min-width: 100px; color: white; /* Header ID blanco */
     }
      .matrix-table th:first-child { color: white;} 
      .matrix-table td:first-child { color: #333; } /* Celda ID oscura */
@@ -54,7 +54,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-colo
     .matrix-table th:nth-child(2), .matrix-table td:nth-child(2) {
       position: sticky; left: 100px; z-index: 11; min-width: 250px; background-color: #fff; 
     }
-     .matrix-table th:nth-child(2) { background-color: #F58220; color: white; } /* Header Nombre Naranja */
+     .matrix-table th:nth-child(2) { background-color: #FF5900; color: white; } /* Header Nombre Naranja */
      .matrix-table td:nth-child(2) { text-align: left; font-weight: 500;} /* Celda Nombre */
 
     .matrix-table tbody tr td { background-color: #fff; }
@@ -69,7 +69,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-colo
     .table-responsive-wrapper { width: 100%; overflow-x: auto; margin-top: 20px; }
     .actions { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; }
     .pill { 
-      padding: 10px 18px; border: 1px solid #F58220; border-radius: 25px; background: #F58220; color: #fff; cursor: pointer; font-size: 15px; transition: all 0.3s ease; text-decoration: none; display: inline-flex; align-items: center; 
+      padding: 10px 18px; border: 1px solid #FF5900; border-radius: 25px; background: #FF5900; color: #fff; cursor: pointer; font-size: 15px; transition: all 0.3s ease; text-decoration: none; display: inline-flex; align-items: center; 
     }
     .pill:hover { 
       background-color: #E07014; box-shadow: 0 4px 10px rgba(245, 130, 32, 0.2); transform: translateY(-2px); 
@@ -82,7 +82,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; background-colo
     .filter-group input, .filter-group select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
     .filter-group input:focus,
     .filter-group select:focus {
-      border-color: #F58220; box-shadow: 0 0 0 2px rgba(245, 130, 32, 0.2); outline: none;
+      border-color: #FF5900; box-shadow: 0 0 0 2px rgba(245, 130, 32, 0.2); outline: none;
     }
     #dashboard-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; margin-top: 30px; }
     .chart-container { background-color: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
