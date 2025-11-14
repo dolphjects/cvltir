@@ -116,3 +116,61 @@ tr:hover { background-color: #f1f1f1; }
 .sortable-header:hover {
   background-color: #E07014; /* Un naranja más oscuro, como el hover de los pills */
 }
+/* 💡 NUEVO: Hacer que las celdas de porcentaje sean clickeables */
+.matrix-table tbody td[data-module-id] {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.matrix-table tbody td[data-module-id]:hover {
+  background-color: #f0f0f0; /* Un gris muy claro al pasar */
+}
+
+/* --- INICIO: Estilos para el Modal de Detalle de Items --- */
+
+/* 1. Hace que las celdas de porcentaje en la tabla principal sean clickeables */
+.matrix-table tbody td[data-module-id] {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.matrix-table tbody td[data-module-id]:hover {
+  background-color: #f0f0f0; /* Un gris muy claro al pasar */
+}
+
+/* 2. Estilos para la tabla DENTRO del modal flotante */
+.detail-item-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 600px; /* Ancho mínimo para que se vea bien */
+  margin-top: 20px;
+  font-size: 16px;
+}
+
+/* 3. Header de la tabla del modal en Naranja Anáhuac */
+.detail-item-table th {
+  background-color: #FF5900; /* Naranja Anáhuac */
+  color: #fff; /* Blanco */
+  font-weight: 600;
+  border: 1px solid #ddd;
+  padding: 12px 15px;
+  text-align: center;
+}
+
+/* 4. Cuerpo de la tabla del modal en Blanco */
+.detail-item-table td {
+  border: 1px solid #ddd;
+  padding: 12px 15px;
+  text-align: center;
+  background-color: #fff; /* Fondo blanco */
+}
+.detail-item-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+/* 5. Títulos (Curso y Alumno) DENTRO del modal en Naranja */
+#itemDetailModal .modal-content h2,
+#itemDetailModal .modal-content h3 {
+  color: #FF5900;
+}
+
+/* --- FIN: Estilos para el Modal de Detalle de Items --- */

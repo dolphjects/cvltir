@@ -45,6 +45,30 @@
       <div class="modal-chart-wrapper"><canvas id="modalChartCanvas"></canvas></div>
     </div>
   </div>
+  <div id="itemDetailModal" class="modal">
+  <div class="modal-content">
+    <span class="close-button" id="closeItemDetailModal">&times;</span>
+    
+    <h2 id="detailCourseName"></h2>
+    <p id="detailCourseCode" style="color: #7f8c8d; margin-top: -20px;"></p>
+    <h3 id="detailStudentName" style="color: #34495e;"></h3>
+
+    <table class="detail-item-table">
+        <thead>
+            <tr>
+                <th>Módulo</th>
+                <th>Avance</th>
+                <th>Items vistos</th>
+                <th>Items pendientes</th>
+                <th>Total de elementos</th>
+            </tr>
+        </thead>
+        <tbody id="itemDetailTableBody">
+            </tbody>
+    </table>
+    
+  </div>
+</div>
 <script src="/js/pdf.js"></script>
 <script src="/js/main.js"></script>
 </body>
