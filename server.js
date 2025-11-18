@@ -20,7 +20,6 @@ const {
   LTI_ENCRYPTION_KEY,
   CANVAS_TOKEN,
   CLIENT_ID,
-  DEPLOYMENT_ID,
   MONGO_URL,
   NODE_ENV 
 } = process.env;
@@ -90,7 +89,11 @@ lti.setup(
     appRoute: '/lti',
     loginRoute: '/login',
     keysetRoute: '/keys',
-    devMode: !isProduction 
+    devMode: false, // FORZAMOS FALSE PARA QUE USE COOKIES SEGURAS
+    cookies: {
+      secure: true, // Importante para Render/Canvas
+      sameSite: 'None'
+    }
   }
 );
 
@@ -124,9 +127,8 @@ web.get('/report', async (req, res) => {
       let students;
       try {
         students = await getStudents(courseId);
-        console.log(`getStudents OK: ${students.length} alumnos`);
       } catch (e) {
-        console.error('getStudents ERROR:', e.response?.status, e.response?.data || e.message);
+        console.error('getStudents ERROR:', e.message);
         return res.status(500).send('Error obteniendo alumnos');
       } finally {
         console.timeEnd('getStudents');
@@ -144,21 +146,12 @@ web.get('/report', async (req, res) => {
               try {
                 mods = await getModulesForStudent(courseId, s.id);
               } catch (e) {
-                console.error(
-                  `getModulesForStudent ERROR (student ${s.id}):`,
-                  e.response?.status,
-                  e.response?.data || e.message
-                );
                 return [];
               }
 
               const rows = [];
               for (const m of mods) {
-                
-                // --- MODIFICACIÓN: SALTAR MÓDULO ---
-                if (m.name === 'Programa del Curso') {
-                    continue; 
-                }
+                if (m.name === 'Programa del Curso') continue; 
 
                 const items = m.items || [];
                 const reqItems = items.filter(i => !!i.completion_requirement);
@@ -199,23 +192,18 @@ web.get('/report', async (req, res) => {
           )
         );
       } catch (e) {
-        console.error('modsPorAlumno ERROR:', e.response?.status, e.response?.data || e.message);
         return res.status(500).send('Error obteniendo módulos');
       } finally {
         console.timeEnd('modsPorAlumno');
       }
 
-      // 3) Procesa los datos y crea CSV
       const flat = studentData.flat();
-      console.log(`Filas totales: ${flat.length}`);
-
       const summaryRows = flat.filter(r => r.type === 'summary');
       const detailRows = flat.filter(r => r.type === 'detail');
 
       const studentsMap = new Map();
       const modulesMap = new Map();
       const matrix = {};
-      
       let moduleCounter = 0;
 
       for (const row of summaryRows) {
@@ -238,23 +226,14 @@ web.get('/report', async (req, res) => {
       }
 
       const studentsList = Array.from(studentsMap.values());
-      studentsList.sort((a, b) => {
-        return (a.sis_user_id || '').localeCompare(b.sis_user_id || '', undefined, { numeric: true });
-      });
+      studentsList.sort((a, b) => (a.sis_user_id || '').localeCompare(b.sis_user_id || '', undefined, { numeric: true }));
       const modulesList = Array.from(modulesMap.values());
 
       const csvReportData = [];
-
       for (const s of studentsList) {
-        const csvRow = {
-          'ID IEST': s.sis_user_id,
-          'Nombre': s.name
-        };
-
+        const csvRow = { 'ID IEST': s.sis_user_id, 'Nombre': s.name };
         for (const m of modulesList) {
-          const key = `${s.id}_${m.id}`;
-          const cellData = matrix[key];
-          csvRow[m.short_name] = cellData || '-';
+          csvRow[m.short_name] = matrix[`${s.id}_${m.id}`] || '-';
         }
         csvReportData.push(csvRow);
       }
@@ -267,129 +246,70 @@ web.get('/report', async (req, res) => {
     console.timeEnd('reporte');
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
   } catch (e) {
-    const msg = e?.response?.data || e?.message || String(e);
-    const code = e?.response?.status || 500;
-    console.error('Reporte ERROR:', code, msg);
-    
-    console.timeEnd('modsPorAlumno');
-    console.timeEnd('reporte');
-
-    res.status(500).send(`Error construyendo reporte (${code}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+    res.status(500).send(`Error reporte: ${e.message}`);
   }
 });
 
 
 web.get('/report/data', async (req, res) => {
   const { course_id, kind } = req.query;
-  const data =
-    kind === 'csv' ? web.locals[`csv_${course_id}`] :
-    kind === 'detail' ? web.locals[`detail_${course_id}`] :
-    web.locals[`summ_${course_id}`]; 
-
+  const data = kind === 'csv' ? web.locals[`csv_${course_id}`] : kind === 'detail' ? web.locals[`detail_${course_id}`] : web.locals[`summ_${course_id}`]; 
   if (!data) return res.status(404).send('Sin datos');
-
   if (kind === 'csv') {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8'); 
     res.setHeader('Content-Disposition', 'attachment; filename="progreso.csv"');
     return res.send(data);
   }
-
   res.json(data);
 });
 
 web.get('/course-details', async (req, res) => {
   const { course_id } = req.query;
   if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
-
   try {
     const response = await canvas.get(`/courses/${course_id}`);
-    const curso = response.data;
-    res.json({
-      id: curso.id,
-      nombre: curso.name,
-      codigo: curso.course_code
-    });
-  } catch (error) {
-    console.error('Error fetching course details:', error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
+    res.json({ id: response.data.id, nombre: response.data.name, codigo: response.data.course_code });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 web.get('/canvas-test', async (req, res) => {
   try {
-    const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
-      headers: { Authorization: `Bearer ${CANVAS_TOKEN}` }
-    });
+    const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, { headers: { Authorization: `Bearer ${CANVAS_TOKEN}` } });
     res.json({ success: true, courses: response.data });
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.response?.data || error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 web.get('/canvas-courses', async (req, res) => {
   try {
-    const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
-      headers: { Authorization: `Bearer ${CANVAS_TOKEN}` }
-    });
-    const cursos = response.data.map(curso => ({
-      id: curso.id,
-      nombre: curso.name,
-      codigo: curso.course_code
-    }));
+    const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, { headers: { Authorization: `Bearer ${CANVAS_TOKEN}` } });
+    const cursos = response.data.map(c => ({ id: c.id, nombre: c.name, codigo: c.course_code }));
     res.json({ success: true, total: cursos.length, cursos });
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.response?.data || error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 web.get('/debug/students', async (req, res) => {
   try {
-    const { course_id } = req.query;
-    if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
-    const students = await getStudents(course_id);
+    const students = await getStudents(req.query.course_id);
     res.json({ total: students.length, students: students.slice(0, 10) });
-  } catch (e) {
-    console.error('DEBUG students:', e.response?.status, e.response?.data || e.message);
-    res.status(500).json({ error: e.response?.data || e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 web.get('/debug/modules', async (req, res) => {
   try {
-    const { course_id, student_id } = req.query;
-    if (!course_id || !student_id) return res.status(400).json({ error: 'Falta course_id o student_id' });
-    const mods = await getModulesForStudent(course_id, student_id);
+    const mods = await getModulesForStudent(req.query.course_id, req.query.student_id);
     res.json({ count: mods.length, sample: mods.slice(0, 1) });
-  } catch (e) {
-    console.error('DEBUG modules:', e.response?.status, e.response?.data || e.message);
-    res.status(500).json({ error: e.response?.data || e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 (async () => {
   await lti.deploy({ serverless: true, silent: true });
 
-  // ==============================================================
-  // SOLUCIÓN DEFINITIVA: REGISTRO MÚLTIPLE DE PLATAFORMAS
-  // Registra TODAS las variantes posibles para asegurar conexión
-  // ==============================================================
-  
+  // REGISTRO MÚLTIPLE PARA ASEGURAR CONEXIÓN
   const posiblesUrls = [
-      PLATFORM_URL,                           // 1. Del .env (ej. iest.beta...)
-      'https://iest.beta.instructure.com',    // 2. Tu dominio SIN slash
-      'https://iest.beta.instructure.com/',   // 3. Tu dominio CON slash
-      'https://canvas.instructure.com',       // 4. Genérica (Cloud)
-      'https://canvas.instructure.com/',      // 5. Genérica CON slash
-      'https://canvas.beta.instructure.com',  // 6. Beta Genérica
-      'https://canvas.beta.instructure.com/'  // 7. Beta Genérica CON slash
+      PLATFORM_URL, 'https://iest.beta.instructure.com', 'https://iest.beta.instructure.com/',
+      'https://canvas.instructure.com', 'https://canvas.instructure.com/',
+      'https://canvas.beta.instructure.com', 'https://canvas.beta.instructure.com/'
   ];
-
-  console.log('--- Iniciando Registro de Variantes ---');
 
   for (const urlVariante of posiblesUrls) {
       if (!urlVariante) continue;
@@ -397,29 +317,27 @@ web.get('/debug/modules', async (req, res) => {
           await lti.registerPlatform({
               url: urlVariante,
               name: 'Canvas Variant',
-              clientId: CLIENT_ID, // Usamos el mismo ClientID para todas
+              clientId: CLIENT_ID,
               authenticationEndpoint: AUTH_LOGIN_URL,
               accesstokenEndpoint: AUTH_TOKEN_URL,
               authConfig: { method: 'JWK_SET', key: KEYSET_URL }
           });
-          console.log(`✅ Registrada: ${urlVariante}`);
-      } catch (err) {
-          // Ignoramos si ya existe para no detener el servidor
-      }
+      } catch (err) {}
   }
-  console.log('--- Fin del Registro ---');
 
   lti.onConnect(async (token, req, res) => {
     const courseId = token?.platformContext?.context?.id;
     if (!courseId) return res.status(400).send('No hay contexto de curso.');
-    // Redirige al reporte específico del curso
     return res.redirect(`/report?course_id=${courseId}`);
   });
 
   const host = express();
 
+  // ¡ESTO ES LO QUE ARREGLA EL ERROR MISSING_VALIDATION_COOKIE EN RENDER!
+  host.enable('trust proxy'); 
+  
   host.use(express.static(path.join(__dirname, 'public')));
-  host.use('/', lti.app); // Ahora lti.app SÍ conoce la plataforma registrada
+  host.use('/', lti.app);
   host.use('/', web);
 
   host.listen(PORT, () => console.log(`✅ LTI tool corriendo en ${TOOL_URL}`));
