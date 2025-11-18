@@ -79,23 +79,22 @@ web.use(express.json());
 
 
 const isProduction = NODE_ENV === 'production';
-// 1. Definimos LTI (Como lo tenías)
+// 1. Definimos LTI
 const lti = LtiProvider; 
 
 // 2. Configuramos LTI
 lti.setup(
-  LTI_ENCRYPTION_KEY,   // <-- CORRECCIÓN: La clave de encriptación real
-  { url: MONGO_URL },    // La base de datos
-  { // Opciones
+  LTI_ENCRYPTION_KEY,
+  { url: MONGO_URL },
+  { 
     appRoute: '/lti',
     loginRoute: '/login',
     keysetRoute: '/keys',
-    devMode: !isProduction // <-- La forma moderna de 'cookieSecure'
+    devMode: !isProduction 
   }
 );
 
-// 3. ¡LA WHITELIST VA AFUERA, COMO LA TENÍAS ANTES!
-// Esto le dice a LTI que NO proteja estas rutas.
+// 3. Whitelist
 lti.whitelist(
   '/', 
   '/canvas-courses', 
@@ -156,12 +155,10 @@ web.get('/report', async (req, res) => {
               const rows = [];
               for (const m of mods) {
                 
-                // --- 💡 MODIFICACIÓN 1: SALTAR MÓDULO ---
-                // Si el nombre del módulo es "Programa del curso", sáltalo y no lo proceses.
+                // --- MODIFICACIÓN: SALTAR MÓDULO ---
                 if (m.name === 'Programa del Curso') {
-                    continue; // Pasa al siguiente módulo
+                    continue; 
                 }
-                // --- 💡 FIN DE LA MODIFICACIÓN 1 ---
 
                 const items = m.items || [];
                 const reqItems = items.filter(i => !!i.completion_requirement);
@@ -208,21 +205,18 @@ web.get('/report', async (req, res) => {
         console.timeEnd('modsPorAlumno');
       }
 
-      // 3) Procesa los datos y ¡CREA EL CSV PIVOTADO!
+      // 3) Procesa los datos y crea CSV
       const flat = studentData.flat();
       console.log(`Filas totales: ${flat.length}`);
 
       const summaryRows = flat.filter(r => r.type === 'summary');
       const detailRows = flat.filter(r => r.type === 'detail');
 
-      // --- INICIO: Lógica para generar CSV pivotado (Reporte de Avance) ---
       const studentsMap = new Map();
       const modulesMap = new Map();
       const matrix = {};
       
-      // --- 💡 MODIFICACIÓN 2: CONTADOR DESDE 0 ---
-      let moduleCounter = 0; // Cambiado de 1 a 0
-      // --- 💡 FIN DE LA MODIFICACIÓN 2 ---
+      let moduleCounter = 0;
 
       for (const row of summaryRows) {
         if (!studentsMap.has(row.student_id)) {
@@ -236,50 +230,41 @@ web.get('/report', async (req, res) => {
           modulesMap.set(row.module_id, {
             id: row.module_id,
             name: row.module_name,
-            short_name: `Módulo ${moduleCounter++}` // Esto ahora generará Módulo 0, Módulo 1, etc.
+            short_name: `Módulo ${moduleCounter++}`
           });
         }
         const key = `${row.student_id}_${row.module_id}`;
-        matrix[key] = `${row.module_pct}%`; // Guardamos el texto del porcentaje
+        matrix[key] = `${row.module_pct}%`; 
       }
 
       const studentsList = Array.from(studentsMap.values());
       studentsList.sort((a, b) => {
-    // Usamos localeCompare con numeric: true para ordenar "1000" vs "200" correctamente
-    return (a.sis_user_id || '').localeCompare(b.sis_user_id || '', undefined, { numeric: true });
-});
+        return (a.sis_user_id || '').localeCompare(b.sis_user_id || '', undefined, { numeric: true });
+      });
       const modulesList = Array.from(modulesMap.values());
 
-      // Este array se convertirá en tu CSV idéntico al reporte web
       const csvReportData = [];
 
       for (const s of studentsList) {
-        // Empezamos cada fila con los datos del estudiante
         const csvRow = {
           'ID IEST': s.sis_user_id,
           'Nombre': s.name
         };
 
-        // Añadimos dinámicamente las columnas de módulos
         for (const m of modulesList) {
           const key = `${s.id}_${m.id}`;
           const cellData = matrix[key];
-          // Usamos el nombre corto (ej: "Módulo 1") como cabecera
           csvRow[m.short_name] = cellData || '-';
         }
         csvReportData.push(csvRow);
       }
       
-      // === ¡AQUÍ ESTÁ LA CORRECCIÓN! ===
-      // Guardamos los datos que SÍ quieres (csvReportData) en la variable
-      // que tu ruta /report/data va a leer.
       web.locals[`summ_${courseId}`]   = summaryRows; 
-      web.locals[`csv_${courseId}`]    = stringify(csvReportData, { header: true, bom: true }); // <--- CAMBIO HECHO AQUÍ
+      web.locals[`csv_${courseId}`]    = stringify(csvReportData, { header: true, bom: true });
       web.locals[`detail_${courseId}`] = detailRows;
     }
 
     console.timeEnd('reporte');
-    // Envía la página del reporte
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
   } catch (e) {
     const msg = e?.response?.data || e?.message || String(e);
@@ -304,7 +289,7 @@ web.get('/report/data', async (req, res) => {
   if (!data) return res.status(404).send('Sin datos');
 
   if (kind === 'csv') {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); // Añadido charset por si acaso
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); 
     res.setHeader('Content-Disposition', 'attachment; filename="progreso.csv"');
     return res.send(data);
   }
@@ -312,7 +297,6 @@ web.get('/report/data', async (req, res) => {
   res.json(data);
 });
 
-// Nueva ruta para obtener detalles de un solo curso por ID
 web.get('/course-details', async (req, res) => {
   const { course_id } = req.query;
   if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
@@ -334,7 +318,6 @@ web.get('/course-details', async (req, res) => {
   }
 });
 
-// Prueba conexión a Canvas con el token
 web.get('/canvas-test', async (req, res) => {
   try {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
@@ -347,7 +330,6 @@ web.get('/canvas-test', async (req, res) => {
   }
 });
 
-// Cursos resumidos: solo ID y nombre
 web.get('/canvas-courses', async (req, res) => {
   try {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, {
@@ -356,7 +338,7 @@ web.get('/canvas-courses', async (req, res) => {
     const cursos = response.data.map(curso => ({
       id: curso.id,
       nombre: curso.name,
-     codigo: curso.course_code
+      codigo: curso.course_code
     }));
     res.json({ success: true, total: cursos.length, cursos });
   } catch (error) {
@@ -392,38 +374,40 @@ web.get('/debug/modules', async (req, res) => {
 (async () => {
   await lti.deploy({ serverless: true, silent: true });
 
-  try {
-    console.log(`Intentando eliminar plataforma antigua para: ${PLATFORM_URL} con ClientID: ${CLIENT_ID}`);
-    await lti.deletePlatform(PLATFORM_URL, CLIENT_ID); 
-    console.log('Plataforma antigua eliminada exitosamente (si existía).');
-  } catch (err) {
-    console.log('No se pudo eliminar plataforma (probablemente no existía):', err.message);
-  }
-  console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID}`); // Ya no logueamos el DEPLOYMENT_ID
-  await lti.registerPlatform({
-    url: PLATFORM_URL, // https://iest.beta.instructure.com
-    name: 'Canvas',
-    clientId: CLIENT_ID,
-    authenticationEndpoint: AUTH_LOGIN_URL,
-    accesstokenEndpoint: AUTH_TOKEN_URL,
-    authConfig: { method: 'JWK_SET', key: KEYSET_URL }
-  });
+  // ==============================================================
+  // SOLUCIÓN DEFINITIVA: REGISTRO MÚLTIPLE DE PLATAFORMAS
+  // Registra TODAS las variantes posibles para asegurar conexión
+  // ==============================================================
   
-  const urlConBarra = 'https://iest.beta.instructure.com/'; 
-  
-  try {
-    console.log('Registrando plataforma secundaria (con slash)...');
-    await lti.registerPlatform({
-      url: urlConBarra,
-      name: 'Canvas Slash',
-      clientId: CLIENT_ID, // El mismo Client ID
-      authenticationEndpoint: AUTH_LOGIN_URL,
-      accesstokenEndpoint: AUTH_TOKEN_URL,
-      authConfig: { method: 'JWK_SET', key: KEYSET_URL }
-    });
-  } catch (err) {
-    console.log('La plataforma con slash ya estaba registrada.');
+  const posiblesUrls = [
+      PLATFORM_URL,                           // 1. Del .env (ej. iest.beta...)
+      'https://iest.beta.instructure.com',    // 2. Tu dominio SIN slash
+      'https://iest.beta.instructure.com/',   // 3. Tu dominio CON slash
+      'https://canvas.instructure.com',       // 4. Genérica (Cloud)
+      'https://canvas.instructure.com/',      // 5. Genérica CON slash
+      'https://canvas.beta.instructure.com',  // 6. Beta Genérica
+      'https://canvas.beta.instructure.com/'  // 7. Beta Genérica CON slash
+  ];
+
+  console.log('--- Iniciando Registro de Variantes ---');
+
+  for (const urlVariante of posiblesUrls) {
+      if (!urlVariante) continue;
+      try {
+          await lti.registerPlatform({
+              url: urlVariante,
+              name: 'Canvas Variant',
+              clientId: CLIENT_ID, // Usamos el mismo ClientID para todas
+              authenticationEndpoint: AUTH_LOGIN_URL,
+              accesstokenEndpoint: AUTH_TOKEN_URL,
+              authConfig: { method: 'JWK_SET', key: KEYSET_URL }
+          });
+          console.log(`✅ Registrada: ${urlVariante}`);
+      } catch (err) {
+          // Ignoramos si ya existe para no detener el servidor
+      }
   }
+  console.log('--- Fin del Registro ---');
 
   lti.onConnect(async (token, req, res) => {
     const courseId = token?.platformContext?.context?.id;
