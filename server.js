@@ -264,7 +264,8 @@ web.get('/report/data', async (req, res) => {
 });
 
 web.get('/course-details', async (req, res) => {
-  const { course_id } = req.query;
+  //const { course_id } = req.query;
+  const course_id = '128';
   if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
   try {
     const response = await canvas.get(`/courses/${course_id}`);
