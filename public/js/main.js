@@ -342,26 +342,52 @@ window.addEventListener('click', (event) => {
 });
 
 
-// --- Función de Arranque ---
 (async () => {
-  const s = await load('summary'); // Carga datos iniciales
+  // 1. Aseguramos que el loader sea visible al inicio
+  const loader = document.getElementById('loading-overlay');
+  if (loader) loader.classList.remove('hidden');
+
   try {
-    // Pide info del curso
+    // 2. Obtenemos info básica del curso (rápido)
     const courseRes = await fetch(`/course-details?course_id=${courseId}`);
     const course = await courseRes.json();
-    document.getElementById('courseName').textContent = course.nombre;
+    document.getElementById('courseName').textContent = course.nombre || 'Curso sin nombre';
     document.getElementById('courseCode').textContent = `Código: ${course.codigo || 'N/A'}`;
   } catch (e) {
-    console.error('No se pudieron cargar los detalles del curso', e);
-    document.getElementById('courseName').textContent = 'Curso no encontrado';
+    console.error('Error info curso', e);
+    document.getElementById('courseName').textContent = 'Reporte de Curso';
   }
-  summaryView = 'avance';
-  
-  // Mostrar tabla y filtros
-  tableWrap.style.display = 'block';
-  filtersWrap.style.display = 'flex';
-  stateFilterGroup.style.display = 'flex';
 
-  populateFilters(s, 'summary');
-  renderSumm(s); // Render inicial
+  // 3. PEDIMOS LOS DATOS PESADOS (Aquí es donde tarda los 10-30s)
+  try {
+    // Llamamos a la nueva ruta de API que creamos en server.js
+    const response = await fetch(`/api/process-report?course_id=${courseId}`);
+    
+    if (!response.ok) throw new Error('Error en el servidor calculando datos');
+    
+    const megaData = await response.json();
+
+    // 4. Guardamos los datos en las variables globales
+    summaryData = megaData.summary;
+    detailData = megaData.detail; // ¡Ya tenemos los detalles listos también!
+
+    // 5. Configuramos la vista
+    summaryView = 'avance';
+    tableWrap.style.display = 'block';
+    filtersWrap.style.display = 'flex';
+    stateFilterGroup.style.display = 'flex';
+
+    populateFilters(summaryData, 'summary');
+    renderSumm(summaryData);
+
+    // 6. ¡OCULTAMOS LA PANTALLA DE CARGA!
+    if (loader) loader.classList.add('hidden');
+
+  } catch (e) {
+    console.error(e);
+    if (loader) {
+        loader.innerHTML = `<h3>Ocurrió un error al cargar.</h3><p>${e.message}</p>`;
+        loader.style.color = 'red';
+    }
+  }
 })();

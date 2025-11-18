@@ -69,6 +69,28 @@
     <div id="detail-list-container"></div>
   </div>
 </div>
+
+<div id="loading-overlay">
+  <div class="loading-content">
+    <img src="./img/loading.png" alt="Cargando..." class="loading-image">
+  </div>
+</div>
+
+<style>
+  #loading-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: #ffffff;
+    z-index: 10000; /* Encima de todo */
+    display: flex; justify-content: center; align-items: center; flex-direction: column;
+    transition: opacity 0.5s ease;
+  }
+  .loading-image { max-width: 500px; margin-bottom: 20px; }
+  .hidden { opacity: 0; pointer-events: none; }
+</style>
+
+</body>
+</html>
 <script src="/js/pdf.js"></script>
 <script src="/js/main.js"></script>
 </body>
