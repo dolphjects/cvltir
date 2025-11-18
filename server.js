@@ -251,7 +251,8 @@ web.get('/report', async (req, res) => {
 
 
 web.get('/report/data', async (req, res) => {
-  const { course_id, kind } = req.query;
+  const { kind } = req.query;
+  const course_id = '128';
   const data = kind === 'csv' ? web.locals[`csv_${course_id}`] : kind === 'detail' ? web.locals[`detail_${course_id}`] : web.locals[`summ_${course_id}`]; 
   if (!data) return res.status(404).send('Sin datos');
   if (kind === 'csv') {
