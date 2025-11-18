@@ -401,14 +401,29 @@ web.get('/debug/modules', async (req, res) => {
   }
   console.log(`Registrando plataforma con CLIENT_ID: ${CLIENT_ID}`); // Ya no logueamos el DEPLOYMENT_ID
   await lti.registerPlatform({
-    url: PLATFORM_URL,
+    url: PLATFORM_URL, // https://iest.beta.instructure.com
     name: 'Canvas',
-    clientId: CLIENT_ID || 'TO_FILL',
+    clientId: CLIENT_ID,
     authenticationEndpoint: AUTH_LOGIN_URL,
     accesstokenEndpoint: AUTH_TOKEN_URL,
     authConfig: { method: 'JWK_SET', key: KEYSET_URL }
   });
-  console.log('Plataforma registrada/actualizada exitosamente.');
+  
+  const urlConBarra = 'https://iest.beta.instructure.com/'; 
+  
+  try {
+    console.log('Registrando plataforma secundaria (con slash)...');
+    await lti.registerPlatform({
+      url: urlConBarra,
+      name: 'Canvas Slash',
+      clientId: CLIENT_ID, // El mismo Client ID
+      authenticationEndpoint: AUTH_LOGIN_URL,
+      accesstokenEndpoint: AUTH_TOKEN_URL,
+      authConfig: { method: 'JWK_SET', key: KEYSET_URL }
+    });
+  } catch (err) {
+    console.log('La plataforma con slash ya estaba registrada.');
+  }
 
   lti.onConnect(async (token, req, res) => {
     const courseId = token?.platformContext?.context?.id;

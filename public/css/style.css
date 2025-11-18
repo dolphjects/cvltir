@@ -174,3 +174,63 @@ tr:hover { background-color: #f1f1f1; }
 }
 
 /* --- FIN: Estilos para el Modal de Detalle de Items --- */
+
+/* --- INICIO: Estilos para Lista de Items (Prueba de Fuego) --- */
+
+/* 1. Hace que los NÚMEROS (vistos/pendientes) sean clickeables */
+.clickable-detail-count {
+  cursor: pointer;
+  text-decoration: underline;
+  color: #007bff; /* Un azul para que parezca link */
+  font-weight: bold;
+}
+.clickable-detail-count:hover {
+  color: #0056b3; /* Azul más oscuro al pasar */
+}
+
+/* 2. Estilos para el contenedor de la lista */
+#detail-list-container {
+  width: 100%;
+  max-height: 300px; /* Altura máxima, por si son muchos items */
+  overflow-y: auto; /* Scroll si se pasa */
+  border-top: 2px solid #e0e0e0;
+  margin-top: 20px;
+  padding-top: 15px;
+  text-align: left; /* Alinea la lista a la izquierda */
+}
+
+/* 3. Título de la lista (ej: "Items Pendientes (18)") */
+#detail-list-container h3 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.2em;
+}
+
+/* 4. La lista en sí */
+.detail-item-list {
+  list-style: none; /* Quita los puntos de la lista */
+  padding-left: 0;
+  margin: 0;
+}
+
+/* 5. Cada item en la lista */
+.detail-item-list li {
+  padding: 10px 5px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between; /* Pone el tipo a la derecha */
+  align-items: center;
+}
+
+/* 6. El "tipo" de item (ej: Tarea, Foro) */
+.item-type {
+  font-size: 0.9em;
+  color: #777;
+  background-color: #f4f4f4;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* --- FIN: Estilos para Lista de Items --- */
