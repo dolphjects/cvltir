@@ -1,4 +1,7 @@
-// --- Dependencias ---
+// ==========================================
+// LTI TOOL - VERSIÓN FINAL (ID DINÁMICO)
+// ==========================================
+
 const express = require('express');
 const dotenv = require('dotenv');
 dotenv.config();
@@ -24,13 +27,13 @@ const {
   NODE_ENV 
 } = process.env;
 
-// ==== Canvas API client + helpers ====
+// ==== Canvas API client ====
 const canvas = axios.create({
   baseURL: `${PLATFORM_URL}/api/v1`,
   headers: { Authorization: `Bearer ${CANVAS_TOKEN || ''}` }
 });
 
-// Paginación (sigue los links "next")
+// Funciones Helper
 async function getAll(url, params = {}) {
   let out = [];
   let next = url;
@@ -58,7 +61,6 @@ async function getStudents(courseId) {
     'type[]': 'StudentEnrollment',
     'state[]': 'active'
   });
-  
   return list.map(e => ({ id: e.user.id, name: e.user.name, sis_user_id: e.user.sis_id || e.sis_user_id }));
 }
 
@@ -69,19 +71,16 @@ async function getModulesForStudent(courseId, studentId) {
   });
 }
 
-
-// Inicializamos Express (tu app web)
+// Inicializamos Express
 const web = express();
 web.set('views', path.join(__dirname, 'views'));
 web.use(express.urlencoded({ extended: true }));
 web.use(express.json());
 
-
 const isProduction = NODE_ENV === 'production';
-// 1. Definimos LTI
 const lti = LtiProvider; 
 
-// 2. Configuramos LTI
+// Configuración LTI
 lti.setup(
   LTI_ENCRYPTION_KEY,
   { url: MONGO_URL },
@@ -89,51 +88,42 @@ lti.setup(
     appRoute: '/lti',
     loginRoute: '/login',
     keysetRoute: '/keys',
-    devMode: false, // FORZAMOS FALSE PARA QUE USE COOKIES SEGURAS
+    devMode: false, 
     cookies: {
-      secure: true, // Importante para Render/Canvas
+      secure: true,
       sameSite: 'None'
     }
   }
 );
 
-// 3. Whitelist
-lti.whitelist(
-  '/', 
-  '/canvas-courses', 
-  '/course-details',
-  '/report',         
-  '/report/data',
-  '/css',
-  '/js'
-);
+lti.whitelist('/', '/canvas-courses', '/course-details', '/report', '/report/data', '/css', '/js');
 
-// Muestra el selector de cursos
 web.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'selector.html'));
 });
 
 web.get('/report', async (req, res) => {
-  //const courseId = req.query.course_id;
-const courseId = '128';
+  // --- CAMBIO 1: RECIBIMOS ID DE LA URL (DINÁMICO) ---
+  const courseId = req.query.course_id; 
+  // ---------------------------------------------------
+
   try {
     console.time('reporte');
     if (courseId) {
       if (!CANVAS_TOKEN) return res.status(500).send('Falta CANVAS_TOKEN en .env');
 
-      // 1) Alumnos
       console.time('getStudents');
       let students;
       try {
         students = await getStudents(courseId);
       } catch (e) {
         console.error('getStudents ERROR:', e.message);
-        return res.status(500).send('Error obteniendo alumnos');
+        // Si falla aquí, suele ser porque el Token expiró o el ID es incorrecto
+        return res.status(500).send(`Error obteniendo alumnos para curso ${courseId}: ${e.message}`);
       } finally {
         console.timeEnd('getStudents');
       }
 
-      // 2) Módulos por alumno
       console.time('modsPorAlumno');
       let studentData;
       try {
@@ -144,9 +134,7 @@ const courseId = '128';
               let mods;
               try {
                 mods = await getModulesForStudent(courseId, s.id);
-              } catch (e) {
-                return [];
-              }
+              } catch (e) { return []; }
 
               const rows = [];
               for (const m of mods) {
@@ -249,12 +237,15 @@ const courseId = '128';
   }
 });
 
-
 web.get('/report/data', async (req, res) => {
-  const { kind } = req.query;
-  const course_id = '128';
+  const { kind, course_id } = req.query; // --- CAMBIO 2: USAMOS EL ID DE LA QUERY ---
+  
+  if (!course_id) return res.status(400).send('Falta course_id');
+
   const data = kind === 'csv' ? web.locals[`csv_${course_id}`] : kind === 'detail' ? web.locals[`detail_${course_id}`] : web.locals[`summ_${course_id}`]; 
+  
   if (!data) return res.status(404).send('Sin datos');
+  
   if (kind === 'csv') {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8'); 
     res.setHeader('Content-Disposition', 'attachment; filename="progreso.csv"');
@@ -264,8 +255,7 @@ web.get('/report/data', async (req, res) => {
 });
 
 web.get('/course-details', async (req, res) => {
-  //const { course_id } = req.query;
-  const course_id = '128';
+  const { course_id } = req.query; // --- CAMBIO 3: USAMOS ID DE LA QUERY ---
   if (!course_id) return res.status(400).json({ error: 'Falta course_id' });
   try {
     const response = await canvas.get(`/courses/${course_id}`);
@@ -273,6 +263,7 @@ web.get('/course-details', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// ... (Rutas de test y debug se quedan igual) ...
 web.get('/canvas-test', async (req, res) => {
   try {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, { headers: { Authorization: `Bearer ${CANVAS_TOKEN}` } });
@@ -301,11 +292,11 @@ web.get('/debug/modules', async (req, res) => {
     res.json({ count: mods.length, sample: mods.slice(0, 1) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// ...
 
 (async () => {
   await lti.deploy({ serverless: true, silent: true });
 
-  // REGISTRO MÚLTIPLE PARA ASEGURAR CONEXIÓN
   const posiblesUrls = [
       PLATFORM_URL, 'https://iest.beta.instructure.com', 'https://iest.beta.instructure.com/',
       'https://canvas.instructure.com', 'https://canvas.instructure.com/',
@@ -326,17 +317,24 @@ web.get('/debug/modules', async (req, res) => {
       } catch (err) {}
   }
 
+  // --- CAMBIO 4: LÓGICA DE CONEXIÓN (LA MAGIA) ---
   lti.onConnect(async (token, req, res) => {
-    const courseId = token?.platformContext?.context?.id;
+    // 1. Intentamos obtener el ID numérico que configuraste en el Paso 1
+    const customId = token.platformContext.custom && token.platformContext.custom.canvas_course_id;
+    
+    // 2. Si no viene (porque no configuraste la clave aún), usamos el UUID de respaldo (que fallará pero sirve para debug)
+    const courseId = customId || token.platformContext.context.id;
+
+    console.log(`🔗 LTI Launch: Context ID recibido: ${token.platformContext.context.id} -> Mapeado a: ${courseId}`);
+
     if (!courseId) return res.status(400).send('No hay contexto de curso.');
+    
+    // 3. Redirigimos al reporte con el ID correcto
     return res.redirect(`/report?course_id=${courseId}`);
   });
 
   const host = express();
-
-  // ¡ESTO ES LO QUE ARREGLA EL ERROR MISSING_VALIDATION_COOKIE EN RENDER!
   host.enable('trust proxy'); 
-  
   host.use(express.static(path.join(__dirname, 'public')));
   host.use('/', lti.app);
   host.use('/', web);
