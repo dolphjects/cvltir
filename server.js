@@ -118,6 +118,7 @@ web.get('/report', async (req, res) => {
   //const courseId = req.query.course_id;
   const courseId = '128';
 
+  
   try {
     console.time('reporte');
     if (courseId) {
