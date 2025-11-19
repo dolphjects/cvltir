@@ -254,11 +254,53 @@ web.get('/course-details', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+/*
 web.get('/canvas-test', async (req, res) => {
   try {
     const response = await axios.get(`${PLATFORM_URL}/api/v1/courses`, { headers: { Authorization: `Bearer ${CANVAS_TOKEN}` } });
     res.json({ success: true, courses: response.data });
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+*/
+
+web.get('/canvas-courses', async (req, res) => {
+  try {
+    if (!CANVAS_TOKEN) throw new Error('Falta CANVAS_TOKEN en .env');
+
+    // 1. Limpieza inteligente de URL (Quita la barra final si existe)
+    // Esto evita el error de "doble slash" que rompe la API
+    const baseUrl = PLATFORM_URL.endsWith('/') ? PLATFORM_URL.slice(0, -1) : PLATFORM_URL;
+    
+    console.log(`🔍 Selector pidiendo cursos a: ${baseUrl}/api/v1/courses`);
+
+    // 2. Petición a Canvas
+    const response = await axios.get(`${baseUrl}/api/v1/courses`, {
+      headers: { Authorization: `Bearer ${CANVAS_TOKEN}` },
+      params: {
+        per_page: 100,              // Traer hasta 100 cursos
+        enrollment_state: 'active', // Solo cursos activos
+        include: ['term']           // Opcional: traer periodo escolar
+      }
+    });
+
+    // 3. Mapeo de datos (Limpieza para tu HTML)
+    const cursos = response.data.map(curso => ({
+      id: curso.id,
+      nombre: curso.name,
+      codigo: curso.course_code
+    }));
+
+    console.log(`✅ Cursos encontrados: ${cursos.length}`);
+    res.json({ success: true, total: cursos.length, cursos });
+
+  } catch (error) {
+    console.error("❌ Error en /canvas-courses:", error.response?.data || error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: error.response?.data 
+    });
+  }
 });
 
 // --- Deploy ---

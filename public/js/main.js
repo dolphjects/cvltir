@@ -254,7 +254,7 @@ async function showItemDetail(studentId, moduleId, studentName, moduleName) {
   detailStudentName.textContent = studentName;
 
   // 5. Llenar la tabla (CON IDs y Clases nuevas)
-  itemDetailTableBody.innerHTML = `
+ /* itemDetailTableBody.innerHTML = `
       <tr>
           <td>${moduleName}</td>
           <td>${percentage}%</td>
@@ -267,15 +267,25 @@ async function showItemDetail(studentId, moduleId, studentName, moduleName) {
           <td>${totalElementos}</td>
       </tr>
   `;
+*/
+itemDetailTableBody.innerHTML = `
+      <tr>
+          <td>${moduleName}</td>
+          <td>${percentage}%</td>
+          <td>${itemsVistos}</td>        <td>${itemsPendientes}</td>    <td>${totalElementos}</td>
+      </tr>
+  `;
+
 
   // 6. AÑADIR LISTENERS a los números
+  /*
   document.getElementById('show-vistos').addEventListener('click', () => {
       renderDetailList(vistosItemsList, 'Items Vistos');
   });
   document.getElementById('show-pendientes').addEventListener('click', () => {
       renderDetailList(pendientesItemsList, 'Items Pendientes');
   });
-
+*/
   // 7. Limpiar la lista anterior
   document.getElementById('detail-list-container').innerHTML = '';
 
@@ -321,10 +331,6 @@ function renderDetailList(items, title) {
     // Inyecta el HTML en el contenedor
     container.innerHTML = html.join('');
 }
-
-
-// (Función printTableToPdf eliminada)
-
 
 // --- Handlers de Eventos ---
 filterName.addEventListener('input', applyFilters);
