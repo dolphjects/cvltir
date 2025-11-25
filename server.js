@@ -310,7 +310,8 @@ web.get('/canvas-courses', async (req, res) => {
   const posiblesUrls = [
       PLATFORM_URL, 'https://iest.beta.instructure.com', 'https://iest.beta.instructure.com/',
       'https://canvas.instructure.com', 'https://canvas.instructure.com/',
-      'https://canvas.beta.instructure.com', 'https://canvas.beta.instructure.com/'
+      'https://canvas.beta.instructure.com', 'https://canvas.beta.instructure.com/',
+      'https://iest.instructure.com','https://iest.instructure.com/'
   ];
 
   for (const url of posiblesUrls) {
