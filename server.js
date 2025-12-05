@@ -50,11 +50,30 @@ async function getAll(url, params = {}) {
 }
 
 async function getStudents(courseId) {
+  // 1. Obtenemos los alumnos reales de Canvas
   const list = await getAll(`/courses/${courseId}/enrollments`, {
     'type[]': 'StudentEnrollment',
     'state[]': 'active'
   });
-  return list.map(e => ({ id: e.user.id, name: e.user.name, sis_user_id: e.user.sis_id || e.sis_user_id }));
+
+  // 2. Mapeamos pero "disfrazamos" los datos visuales
+  return list.map((e, index) => {
+    // Calculamos el número secuencial (index empieza en 0, así que sumamos 1)
+    const seq = index + 1;
+
+    // Generar ID falso: "000001", "000002", etc.
+    // padStart(6, '0') rellena con ceros a la izquierda hasta tener 6 dígitos
+    const fakeId = String(seq).padStart(6, '0');
+
+    // Generar Nombre falso: "Alumno 01", "Alumno 02", etc.
+    const fakeName = `Alumno ${String(seq).padStart(2, '0')}`;
+
+    return { 
+      id: e.user.id,       // ⚠️ IMPORTANTE: Este SE QUEDA REAL para que la API funcione internamente
+      name: fakeName,      // Se mostrará "Alumno XX" en la tabla y CSV
+      sis_user_id: fakeId  // Se mostrará "0000XX" en la tabla y CSV
+    };
+  });
 }
 
 async function getModulesForStudent(courseId, studentId) {
